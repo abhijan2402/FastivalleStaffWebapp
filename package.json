@@ -1,0 +1,32 @@
+{
+  "name": "fastivalle",
+  "version": "1.0.0",
+  "description": "Fastivalle volunteer and field agent demo PWA",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4173 --strictPort",
+    "build": "vite build && node scripts/generate-sw.mjs",
+    "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    "check": "npm run build",
+    "test": "npm run test:domain && npm run test:browser",
+    "test:domain": "node --test tests/domain.test.mjs",
+    "test:browser": "npm run build && playwright test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "jsqr": "^1.4.0",
+    "qrcode-generator": "^2.0.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@vitejs/plugin-react": "^6.2.1",
+    "vite": "^8.3.5"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
