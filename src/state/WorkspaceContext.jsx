@@ -1,10 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { seed, serve, createFamily, changeCard } from '../domain.mjs'
+import { seed, serve, createFamily, changeCard, currentDay, checkFamilyCard } from '../domain.mjs'
 import { shareImpact } from '../lib/shareImpact.js'
-export const DEMO_DAY = '2026-11-02'
 const WorkspaceContext = createContext(null)
-const agentNavs = [['overview', 'home', 'Overview'], ['scan', 'scan', 'Scan & serve'], ['families', 'users', 'Families'], ['units', 'box', 'Food units'], ['impact', 'heart', 'Our impact']]
-const volunteerNavs = [['scan', 'scan', 'Scan & serve'], ['impact', 'heart', 'Our impact']]
+const agentNavs = [['overview', 'home', 'Overview'], ['scan', 'scan', 'Scan & serve'], ['families', 'users', 'Families'], ['units', 'box', 'Food units']]
+const volunteerNavs = [['scan', 'scan', 'Scan & serve']]
 const agentDialogs = ['family-form', 'family', 'unit-form', 'card-confirm', 'unit-summary']
 function loadState() {
   try { return JSON.parse(localStorage.getItem('fv-data')) || seed() } catch { return seed() }
@@ -24,7 +23,9 @@ export function WorkspaceProvider({ children }) {
   const profile = state.profile[role]
   const roleLabel = role === 'agent' ? 'Field Agent' : 'Volunteer'
   const navs = role === 'agent' ? agentNavs : volunteerNavs
-  const todayUnits = state.units.filter(unit => unit.date === DEMO_DAY)
+  const [today, setToday] = useState(currentDay)
+  useEffect(() => { const timer = setInterval(() => setToday(currentDay()), 1000); return () => clearInterval(timer) }, [])
+  const todayUnits = state.units.filter(unit => unit.date === today)
   const ownServings = state.servings.filter(serving => serving.role === role)
   const notify = useCallback(message => {
     clearTimeout(toastTimer.current)
@@ -77,17 +78,17 @@ export function WorkspaceProvider({ children }) {
   }
   function openUnit(unit) {
     if (role !== 'agent') return
-    if (unit.date === DEMO_DAY && unit.served < unit.packs) { setUnitId(unit.id); navigate('scan') }
+    if (unit.date === currentDay() && unit.served < unit.packs) { setUnitId(unit.id); navigate('scan') }
     else openDialog('unit-summary', { unitId: unit.id })
   }
   function checkCard(code) {
-    const result = serve(structuredClone(stateRef.current), { code, unitId, role, online })
+    const result = checkFamilyCard(stateRef.current, code)
     if (!result.ok) openDialog('result', { result })
-    else openDialog('serve', { code, familyId: result.family.id, unitId })
+    else openDialog('serve', { code, familyId: result.family.id })
   }
-  function confirmServing() {
+  function confirmServing(selectedUnitId, memberIds) {
     if (dialog?.type !== 'serve') return
-    const result = commit(next => serve(next, { code: dialog.code, unitId: dialog.unitId, role, online }))
+    const result = commit(next => serve(next, { code: dialog.code, unitId: selectedUnitId, memberIds, role, online }))
     openDialog('result', { result })
   }
   function signIn(email, password) {
@@ -111,11 +112,6 @@ export function WorkspaceProvider({ children }) {
     closeDialog()
     notify('Demo workspace restored')
   }
-  function simulateSync() {
-    commit(next => { next.servings.forEach(serving => { serving.pending = false }); next.queue = [] })
-    closeDialog()
-    notify('Demo sync complete · records remain local')
-  }
   async function install() {
     if (installPrompt.current) { await installPrompt.current.prompt(); installPrompt.current = null }
     else openDialog('install')
@@ -136,7 +132,7 @@ export function WorkspaceProvider({ children }) {
       window.removeEventListener('offline', onConnection)
     }
   }, [notify])
-  const workspace = { state, role, roleLabel, page, online, dialog, toast, unitId, setUnitId, profile, todayUnits, ownServings, navs, notify, navigate, openDialog, closeDialog, registerFamily, updateCard, planUnit, openUnit, checkCard, confirmServing, signIn, updateProfile, resetDemo, simulateSync, install, share: count => shareImpact(count ?? state.total, notify) }
+  const workspace = { state, role, roleLabel, page, online, dialog, toast, unitId, setUnitId, profile, todayUnits, ownServings, navs, notify, navigate, openDialog, closeDialog, registerFamily, updateCard, planUnit, openUnit, checkCard, confirmServing, signIn, updateProfile, resetDemo, install, share: count => shareImpact(count ?? state.total, notify) }
   return <WorkspaceContext.Provider value={workspace}>{children}</WorkspaceContext.Provider>
 }
 export function useWorkspace() {
