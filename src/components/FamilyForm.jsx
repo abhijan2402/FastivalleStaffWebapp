@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import Icon from './Icon.jsx'
+import FamilyPhoto from './FamilyPhoto.jsx'
 import { useWorkspace } from '../state/WorkspaceContext.jsx'
 import { familyRelations as relations } from '../lib/familyRelations.js'
 
@@ -25,7 +26,7 @@ export default function FamilyForm() {
     <label className="field">Receiver name *<input disabled={!!progress.current.receiver} value={name} onChange={event => setName(event.target.value)} required placeholder="Full name" /></label>
     <label className="field">Mobile number (optional)<input disabled={!!progress.current.receiver} type="tel" value={mobile} onChange={event => setMobile(event.target.value)} autoComplete="tel" /></label>
     <label className="field">Email (optional)<input disabled={!!progress.current.receiver} type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" /></label>
-    {demoMode && <label className="field">Photo (optional)<input type="file" accept="image/*" onChange={event => setPhoto(event.target.files[0])} /></label>}
+    <FamilyPhoto photo={photo} onChange={setPhoto} disabled={saving || !!progress.current.receiver} />
     <h3>Family members</h3><p className="small-note">The receiver is included as Self. Add other family members below.</p>
     <div id="member-fields">{members.map((member, index) => <div key={index} className="family-member-fields">
       <label className="field">Member name *<input disabled={index < (progress.current.members?.length || 0)} value={member.name} onChange={event => updateMember(index, 'name', event.target.value)} required placeholder="Member’s full name" /></label>

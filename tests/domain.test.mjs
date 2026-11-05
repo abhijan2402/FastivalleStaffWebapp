@@ -80,3 +80,37 @@ test('member relations and optional contacts persist and remain compatible with 
   assert.throws(() => createFamily(state, { name: 'Other', members: [{ name: 'Child', relation: ' ' }] }))
   assert.equal(Object.hasOwn(family, 'area'), false)
 })
+
+const { eventDateTime, eventTimeParts } = await import('../src/lib/eventTime.mjs')
+test('event wall times use the selected timezone and date-specific offset', () => {
+  assert.equal(eventDateTime('2026-11-06', '14:30', 'Asia/Kolkata'), '2026-11-06T14:30:00+05:30')
+  assert.equal(eventDateTime('2026-11-06', '14:30', 'Asia/Kathmandu'), '2026-11-06T14:30:00+05:45')
+  assert.equal(eventDateTime('2026-07-06', '14:30', 'America/New_York'), '2026-07-06T14:30:00-04:00')
+  assert.equal(eventDateTime('2026-11-06', '14:30', 'America/New_York'), '2026-11-06T14:30:00-05:00')
+  assert.equal(eventDateTime('2026-11-06', '00:00', 'UTC'), '2026-11-06T00:00:00+00:00')
+  assert.deepEqual(eventTimeParts('2026-11-06T01:30:00+05:30', 'America/Los_Angeles'), { date: '2026-11-05', time: '12:00' })
+})
+test('event wall times reject daylight-saving gaps and ambiguous clock changes', () => {
+  assert.throws(() => eventDateTime('2026-03-08', '02:30', 'America/New_York'), /does not exist/)
+  assert.throws(() => eventDateTime('2026-11-01', '01:30', 'America/New_York'), /occurs twice/)
+})
+
+const { receiverIdFromQr, mapEligibility } = await import('../src/lib/serving.mjs')
+test('live QR parsing extracts receiver IDs without trusting local demo cards', () => {
+  assert.equal(receiverIdFromQr('receiver-1'), 'receiver-1')
+  assert.equal(receiverIdFromQr('receiver-1:2'), 'receiver-1')
+  assert.equal(receiverIdFromQr('{"receiverId":"receiver-1"}'), 'receiver-1')
+  assert.throws(() => receiverIdFromQr('https://untrusted.example/receivers/receiver-1'), /valid receiver ID/)
+  assert.throws(() => receiverIdFromQr('{"receiverId":"../../admin"}'), /valid receiver ID/)
+  assert.throws(() => receiverIdFromQr('{broken'), /valid receiver ID/)
+})
+test('eligibility maps self and stable member IDs and respects server restrictions', () => {
+  const family = mapEligibility({ receiver: { id: 'receiver-1', name: 'Receiver' }, self: { id: 'receiver-1', name: 'Receiver', eligible: false }, members: [{ id: 'member-1', name: 'Child', eligible: true }, { personId: 'member-2', name: 'Sibling', alreadyAssigned: true }] }, 'receiver-1')
+  assert.deepEqual(family.members.map(member => [member.id, member.eligible]), [['SELF', false], ['member-1', true], ['member-2', false]])
+  assert.throws(() => mapEligibility({ members: [{ name: 'No ID' }] }, 'receiver-1'), /person IDs/)
+  assert.throws(() => mapEligibility({ members: [{ id: 'member-1', eligible: 'false' }] }, 'receiver-1'), /invalid eligibility flags/)
+  assert.throws(() => mapEligibility({ members: [{ id: 'member-1' }, { id: 'member-1' }] }, 'receiver-1'), /duplicate/)
+  assert.throws(() => mapEligibility({ receiver: { id: 'receiver-2' }, members: [] }, 'receiver-1'), /another receiver/)
+  assert.throws(() => mapEligibility({}, 'receiver-1'), /unsupported format/)
+  assert.equal(mapEligibility({ eligibleMembers: [] }, 'receiver-1').members.length, 0)
+})

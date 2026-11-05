@@ -8,7 +8,6 @@ const shortcuts = [
   ['users', 'Register a family', 'family-form'],
   ['box', 'Plan a food unit', 'unit-form'],
   ['users', 'View families', 'families'],
-  ['box', 'View food events', 'units'],
 ]
 export default function OverviewView() {
   const { state, demoMode, profile, todayUnits, navigate, openDialog } = useWorkspace()

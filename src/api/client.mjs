@@ -60,11 +60,12 @@ export function createApi({ baseUrl, getToken = () => null, onUnauthorized = () 
     updateFoodEvent: (id, body) => request(`/api/admin/food-events/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
     deleteFoodEvent: id => request(`/api/admin/food-events/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     setFoodEventStatus: (id, body) => request(`/api/admin/food-events/${encodeURIComponent(id)}/status`, { method: 'PATCH', body }),
+    eligibleMembers: (eventId, receiverId) => request(`/api/volunteer/food-events/${encodeURIComponent(eventId)}/receivers/${encodeURIComponent(receiverId)}/eligible-members`),
+    assignFood: (eventId, receiverId, personIds) => request(`/api/volunteer/food-events/${encodeURIComponent(eventId)}/assign`, { method: 'POST', body: { receiverId, personIds } }),
     async foodEvents() {
       const items = []
       for (let offset = 0; ; offset += 20) {
-        // This is a read endpoint. The collection labels it POST, which the live API rejects with route-not-found.
-        const payload = await request(`/api/volunteer/food-events?limit=20&offset=${offset}`)
+        const payload = await request(`/api/volunteer/food-events?dateScope=today_and_upcoming&limit=20&offset=${offset}`)
         const page = Array.isArray(payload) ? payload : payload?.foodEvents ?? payload?.events ?? payload?.items ?? payload?.results
         if (!Array.isArray(page)) throw new ApiError('The food-event response has an unsupported format.')
         items.push(...page)

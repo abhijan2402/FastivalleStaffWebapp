@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+test.use({ timezoneId: 'Asia/Kolkata' })
 const demoMode = process.env.VITE_DEMO_MODE === 'true'
 test.skip(demoMode, 'API integration tests run in the default live build.')
 
@@ -123,11 +124,11 @@ test('staff authentication, live volunteer events, session restore and logout', 
   expect(await page.evaluate(() => sessionStorage.getItem('fv-api-session'))).toBeNull()
   expect(requests.some(r => r.path.endsWith('/logout') && r.method === 'POST')).toBeTruthy()
 })
-test('field manager has live identity and explicitly labeled sample workflows', async ({ page }) => {
+test('field agent has live identity and connected serving workflows', async ({ page }) => {
   const requests = await mockApi(page)
   await login(page, 'agent')
   await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible()
-  await expect(page.getByRole('note')).toContainText('static sample data')
+  await expect(page.getByRole('note')).toContainText('Food events, eligibility and food assignments')
   expect(requests.some(r => r.path === '/api/field-manager/auth/login')).toBeTruthy()
   expect(requests.some(r => r.path.startsWith('/api/admin/field-managers'))).toBeFalsy()
 })
@@ -228,19 +229,21 @@ test('food management creates, edits, toggles active, changes status and confirm
   await page.getByRole('button', { name: 'Create food unit', exact: true }).click()
   await page.getByLabel('Distribution name').fill('New API lunch')
   await page.getByLabel('Location', { exact: false }).fill('New community centre')
+  await expect(page.getByLabel('Timezone')).toHaveValue(await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone))
   await page.getByLabel('Distribution date').fill('2026-11-06')
   await page.getByLabel('Distribution time').fill('13:30')
   await page.getByLabel('Number of packs').fill('40')
   await page.getByRole('textbox', { name: 'Food items' }).fill('Dal')
   await page.getByRole('button', { name: 'Add item', exact: true }).click()
-  await page.getByLabel('Total cost').fill('2500.50')
+  await page.getByLabel('Total cost').fill('2500')
   await page.getByRole('dialog').getByRole('button', { name: 'Create food unit', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'New API lunch' })).toBeVisible()
-  expect(requests.find(r => r.path === '/api/admin/food-events' && r.method === 'POST')).toMatchObject({ token: 'Bearer test-access-token', body: { name: 'New API lunch', location: 'New community centre', dateTime: '2026-11-06T13:30:00+05:30', foodItems: ['Dal'], totalPacks: 40, servedPacks: 0, isActive: true, budget: '2500.50', currency: 'BDT' } })
+  expect(requests.find(r => r.path === '/api/admin/food-events' && r.method === 'POST')).toMatchObject({ token: 'Bearer test-access-token', body: { name: 'New API lunch', location: 'New community centre', dateTime: '2026-11-06T13:30:00+05:30', foodItems: ['Dal'], totalPacks: 40, servedPacks: 0, isActive: true, budget: '2500.00', currency: 'BDT' } })
   const card = page.locator('.unit-card').filter({ has: page.getByRole('heading', { name: 'New API lunch' }) })
   await card.getByRole('button', { name: 'Manage event' }).click()
   await page.getByRole('button', { name: 'Edit food event', exact: true }).click()
   await expect(page.getByLabel('Distribution time')).toHaveValue('13:30')
+  await expect(page.getByLabel('Distribution date')).toHaveValue('2026-11-06')
   await page.getByLabel('Distribution name').fill('Edited API lunch')
   await page.getByLabel('Number of packs').fill('50')
   await page.getByRole('button', { name: 'Save food event' }).click()
@@ -299,7 +302,7 @@ test('food permission failures show an error without sample fallback', async ({ 
   await expect(page.locator('.unit-card')).toHaveCount(0)
 })
 
-test('field managers create, view, edit and delete volunteers using the API', async ({ page }) => {
+test('field agents create, view, edit and delete volunteers using the API', async ({ page }) => {
   const requests = await mockApi(page)
   await login(page, 'agent')
   await page.locator('.sidebar [data-page="volunteers"]').click()
@@ -439,7 +442,7 @@ test('volunteer Food events shows an empty result with refresh and no management
   await page.locator('.sidebar [data-page="units"]').click()
   const availability = page.getByRole('region', { name: 'Food event availability' })
   await expect(availability.getByRole('heading', { name: 'No food events available' })).toBeVisible()
-  await expect(availability).toContainText('Ask a field manager')
+  await expect(availability).toContainText('Ask a field agent')
   await expect(availability.getByRole('button', { name: 'Refresh food events' })).toBeEnabled()
   await expect(page.getByRole('button', { name: 'Create food unit' })).toHaveCount(0)
 })
@@ -468,4 +471,137 @@ test('volunteer Food events displays request errors locally and retries successf
   await availability.getByRole('button', { name: 'Refresh food events' }).click()
   await expect(page.getByRole('heading', { name: 'Recovered event' })).toBeVisible()
   await expect(availability.getByRole('alert')).toHaveCount(0)
+})
+
+test('field agent label and overview shortcuts use the requested wording', async ({ page }) => {
+  await mockApi(page)
+  await page.goto('/')
+  await expect(page.getByRole('option', { name: 'Field Agent', exact: true })).toHaveCount(1)
+  await login(page, 'agent')
+  await expect(page.locator('.role-card')).toContainText('Field Agent')
+  await expect(page.locator('.dashboard-shortcuts')).not.toContainText('View food events')
+  await expect(page.locator('.sidebar [data-page="units"]')).toBeVisible()
+})
+
+test('family registration uploads a photo and sends it with the receiver', async ({ page }) => {
+  const requests = await mockApi(page)
+  await login(page, 'agent')
+  await page.getByRole('button', { name: 'Register a family', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Camera', exact: true })).toBeVisible()
+  const chooserPromise = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: 'Upload photo', exact: true }).click()
+  const chooser = await chooserPromise
+  const buffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZkAAAAASUVORK5CYII=', 'base64')
+  await chooser.setFiles({ name: 'receiver.png', mimeType: 'image/png', buffer })
+  await expect(page.getByAltText('Selected family photo')).toBeVisible()
+  await page.getByRole('button', { name: 'Remove photo' }).click()
+  await expect(page.getByAltText('Selected family photo')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Upload photo', exact: true })).toBeVisible()
+  await page.locator('.family-photo input[type=file]').setInputFiles({ name: 'receiver.png', mimeType: 'image/png', buffer })
+  await page.getByLabel('Receiver name').fill('Photo Receiver')
+  await page.getByRole('button', { name: 'Register family', exact: true }).click()
+  await expect(page.getByRole('dialog')).toContainText('receiver-1')
+  expect(requests.find(r => r.path === '/api/admin/receivers' && r.method === 'POST').body.profilePic).toBe(`data:image/png;base64,${buffer.toString('base64')}`)
+})
+
+test('family camera captures a photo, stops its stream and saves the image', async ({ page }) => {
+  const requests = await mockApi(page)
+  await login(page, 'agent')
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 320
+      canvas.height = 240
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#245c46'
+      ctx.fillRect(0, 0, 320, 240)
+      const stream = canvas.captureStream(10)
+      window.familyCameraStream = stream
+      return stream
+    }
+  })
+  await page.getByRole('button', { name: 'Register a family', exact: true }).click()
+  await page.getByRole('button', { name: 'Camera', exact: true }).click()
+  await expect.poll(() => page.locator('.photo-camera video').evaluate(video => video.videoWidth)).toBe(320)
+  await page.getByRole('button', { name: 'Take photo', exact: true }).click()
+  await expect(page.getByAltText('Selected family photo')).toBeVisible()
+  expect(await page.evaluate(() => window.familyCameraStream.getVideoTracks()[0].readyState)).toBe('ended')
+  await page.getByRole('button', { name: 'Camera', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Cancel camera', exact: true }).click()
+  expect(await page.evaluate(() => window.familyCameraStream.getVideoTracks()[0].readyState)).toBe('ended')
+  await page.getByLabel('Receiver name').fill('Camera Receiver')
+  await page.getByRole('button', { name: 'Register family', exact: true }).click()
+  await expect(page.getByRole('dialog')).toContainText('receiver-1')
+  expect(requests.find(r => r.path === '/api/admin/receivers' && r.method === 'POST').body.profilePic).toMatch(/^data:image\/jpeg;base64,/)
+})
+
+test('family camera permission denial allows photo upload', async ({ page }) => {
+  await mockApi(page)
+  await login(page, 'agent')
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('Denied', 'NotAllowedError') }
+  })
+  await page.getByRole('button', { name: 'Register a family', exact: true }).click()
+  await page.getByRole('button', { name: 'Camera', exact: true }).click()
+  await expect(page.locator('.family-photo').getByRole('alert')).toContainText('Camera permission denied')
+  await expect(page.getByRole('button', { name: 'Upload photo', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Camera', exact: true })).toBeEnabled()
+})
+
+test('family card printing is disabled and QR printing excludes family details', async ({ page }) => {
+  await mockApi(page)
+  await login(page, 'agent')
+  await page.getByRole('button', { name: 'Register a family', exact: true }).click()
+  await page.getByLabel('Receiver name').fill('QR Print Receiver')
+  await page.getByRole('button', { name: 'Register family', exact: true }).click()
+  await page.getByRole('button', { name: 'Mark family complete', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Print family card', exact: true })).toBeDisabled()
+  await page.evaluate(() => { window.print = () => { window.qrPrintCalled = true } })
+  await page.getByRole('button', { name: 'Print QR code', exact: true }).click()
+  expect(await page.evaluate(() => window.qrPrintCalled)).toBe(true)
+  await page.emulateMedia({ media: 'print' })
+  await expect(page.locator('#print-qr svg')).toBeVisible()
+  await expect(page.locator('#print-card h2')).toBeHidden()
+  await expect(page.locator('#print-card .card-brand')).toBeHidden()
+  await expect(page.locator('#print-card code')).toBeHidden()
+})
+
+test.describe('food event timezone and integer controls', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' })
+  test('defaults to the local timezone and submits the chosen timezone with whole-number values', async ({ page }) => {
+    const requests = await mockApi(page)
+    await login(page, 'agent')
+    await page.getByRole('button', { name: 'Plan a food unit', exact: true }).click()
+    await expect(page.getByLabel('Timezone')).toHaveValue('America/Los_Angeles')
+    await page.getByLabel('Timezone').selectOption('Asia/Dhaka')
+    await page.getByLabel('Distribution name').fill('Timezone lunch')
+    await page.getByLabel('Location', { exact: false }).fill('Community centre')
+    await page.getByLabel('Distribution date').fill('2026-11-06')
+    await page.getByLabel('Distribution time').fill('14:30')
+    for (const label of ['Number of packs', 'Total cost']) {
+      const input = page.getByLabel(label)
+      await input.fill('14')
+      await input.press('ArrowUp')
+      await expect(input).toHaveValue('15')
+      await input.press('ArrowDown')
+      await expect(input).toHaveValue('14')
+      await input.fill('14.01')
+      expect(await input.evaluate(element => element.validity.stepMismatch)).toBe(true)
+      await input.fill('15')
+    }
+    await page.getByRole('textbox', { name: 'Food items' }).fill('Rice')
+    await page.getByRole('dialog').getByRole('button', { name: 'Create food unit', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Timezone lunch' })).toBeVisible()
+    expect(requests.find(r => r.path === '/api/admin/food-events' && r.method === 'POST').body).toMatchObject({ dateTime: '2026-11-06T14:30:00+06:00', totalPacks: 15, budget: '15.00' })
+    const card = page.locator('.unit-card').filter({ has: page.getByRole('heading', { name: 'Timezone lunch' }) })
+    await card.getByRole('button', { name: 'Manage event' }).click()
+    await page.getByRole('button', { name: 'Edit food event', exact: true }).click()
+    await expect(page.getByLabel('Distribution date')).toHaveValue('2026-11-06')
+    await expect(page.getByLabel('Distribution time')).toHaveValue('00:30')
+    await page.getByRole('button', { name: 'Save food event' }).click()
+    await expect(page.getByRole('heading', { name: 'Timezone lunch' })).toBeVisible()
+    const edit = requests.find(r => r.path === '/api/admin/food-events/created-2' && r.method === 'PATCH')
+    expect(new Date(edit.body.dateTime).getTime()).toBe(new Date('2026-11-06T14:30:00+06:00').getTime())
+  })
 })

@@ -38,7 +38,7 @@ export default function ProcessFood({ family }) {
         <option value="">Choose a food event</option>
         {todayUnits.map(unit => <option value={unit.id} key={unit.id} disabled={unit.served >= unit.packs}>{unit.name} · {unit.packs - unit.served} packs left</option>)}
       </select></label>
-      {!todayUnits.length && <p role="status" className="small-note">No food events are scheduled for today. Ask a field manager to create one.</p>}
+      {!todayUnits.length && <p role="status" className="small-note">No food events are scheduled for today. Ask a field agent to create one.</p>}
       {event && <div className="food-event-details"><h3>{event.name}</h3><p>{foodItemsText(event.items)}</p><p>{event.date}</p><p>{selected.length} food pack{selected.length === 1 ? '' : 's'}</p></div>}
       {alreadyProcessed && <p role="alert" className="error">Already processed: one or more selected people have an entry for this event. Go back to change recipients.</p>}
       {event && !enoughPacks && <p role="alert" className="error">Not enough packs for the selected people. Choose another event or fewer recipients.</p>}

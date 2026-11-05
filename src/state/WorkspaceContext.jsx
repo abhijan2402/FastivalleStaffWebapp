@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { seed, serve, createFamily, changeCard, currentDay, checkFamilyCard } from '../domain.mjs'
+import { mapEligibility } from '../lib/serving.mjs'
 import { shareImpact } from '../lib/shareImpact.js'
 import { createApi, mapFoodEvent, mapReceiver, mapVolunteer } from '../api/client.mjs'
 const WorkspaceContext = createContext(null)
@@ -23,7 +24,7 @@ export function WorkspaceProvider({ children }) {
   const [state, setState] = useState(() => {
     const value = loadState()
     // Live account profiles and event responses are never loaded from demo storage.
-    if (!demoMode) value.profile = { agent: { name: 'Field Manager', contact: '' }, volunteer: { name: 'Volunteer', contact: '' } }
+    if (!demoMode) value.profile = { agent: { name: 'Field Agent', contact: '' }, volunteer: { name: 'Volunteer', contact: '' } }
     return value
   })
   const [session, setSession] = useState(() => demoMode ? null : readSession())
@@ -68,7 +69,7 @@ export function WorkspaceProvider({ children }) {
   const [unitId, setUnitId] = useState('FU-008')
   const toastTimer = useRef(null), installPrompt = useRef(null)
   const profile = state.profile[role]
-  const roleLabel = role === 'agent' ? (demoMode ? 'Field Agent' : 'Field Manager') : 'Volunteer'
+  const roleLabel = role === 'agent' ? 'Field Agent' : 'Volunteer'
   const navs = role === 'agent' ? (demoMode ? agentNavs : [...agentNavs, ['volunteers', 'users', 'Volunteers']]) : demoMode ? volunteerNavs : [...volunteerNavs, ['units', 'box', 'Food events']]
   const [today, setToday] = useState(currentDay)
   useEffect(() => { const timer = setInterval(() => setToday(currentDay()), 1000); return () => clearInterval(timer) }, [])
@@ -100,6 +101,7 @@ export function WorkspaceProvider({ children }) {
   }
   const closeDialog = useCallback(() => { if (!foodMutationLock.current && !staffMutationLock.current) setDialog(null) }, [])
   function navigate(next) {
+    if (foodMutationLock.current || staffMutationLock.current) return
     if (!navs.some(item => item[0] === next)) return
     closeDialog()
     setPage(next)
@@ -192,7 +194,7 @@ export function WorkspaceProvider({ children }) {
     if (sessionRef.current === activeSession) return record
   }
   async function changeStaff(operation, refresh, message) {
-    if (demoMode || role !== 'agent' || !sessionRef.current) throw Error('Please sign in as a field manager to manage these records.')
+    if (demoMode || role !== 'agent' || !sessionRef.current) throw Error('Please sign in as a field agent to manage these records.')
     if (staffMutationLock.current) throw Error('A record is already being saved.')
     const activeSession = sessionRef.current
     staffMutationLock.current = true; setStaffMutationBusy(true)
@@ -233,7 +235,7 @@ export function WorkspaceProvider({ children }) {
     if (await changeStaff(() => apiRef.current.deleteFamilyMember(receiverId, id), refreshFamilies, 'Family member deleted from the server')) closeDialog()
   }
   async function changeFood(operation, message) {
-    if (demoMode || role !== 'agent' || !sessionRef.current) throw Error('Please sign in as a field manager to manage food events.')
+    if (demoMode || role !== 'agent' || !sessionRef.current) throw Error('Please sign in as a field agent to manage food events.')
     if (foodMutationLock.current) throw Error('A food event is already being saved.')
     const activeSession = sessionRef.current
     foodMutationLock.current = true; setFoodMutationBusy(true)
@@ -251,7 +253,7 @@ export function WorkspaceProvider({ children }) {
   async function planUnit(data, editingId) {
     if (role !== 'agent') return
     if (!demoMode) {
-      const body = { name: data.name, location: data.location, foodItems: data.items, dateTime: `${data.date}T${data.time}:00+05:30`, totalPacks: data.packs, budget: data.price.toFixed(2) }
+      const body = { name: data.name, location: data.location, foodItems: data.items, dateTime: data.dateTime, totalPacks: data.packs, budget: data.price.toFixed(2) }
       const saved = await changeFood(() => editingId
         ? apiRef.current.updateFoodEvent(editingId, body)
         : apiRef.current.createFoodEvent({ ...body, servedPacks: 0, isActive: data.isActive, currency: data.currency }), editingId ? 'Food event updated on the server' : 'Food event created on the server')
@@ -274,27 +276,43 @@ export function WorkspaceProvider({ children }) {
     if (unit.date === currentDay() && unit.served < unit.packs) { setUnitId(unit.id); navigate('scan') }
     else openDialog('unit-summary', { unitId: unit.id })
   }
+  const loadServingEvents = useCallback(async () => {
+    const activeSession = sessionRef.current
+    if (!activeSession) throw Error('Please sign in again.')
+    const events = (await apiRef.current.foodEvents()).map(mapFoodEvent)
+    if (sessionRef.current !== activeSession) throw Error('Your session changed. Please sign in again.')
+    return events
+  }, [])
+  const loadEligibleMembers = useCallback(async (eventId, receiverId) => {
+    const activeSession = sessionRef.current
+    if (!activeSession) throw Error('Please sign in again.')
+    const result = await apiRef.current.eligibleMembers(eventId, receiverId)
+    if (sessionRef.current !== activeSession) throw Error('Your session changed. Please sign in again.')
+    return mapEligibility(result, receiverId)
+  }, [])
+  async function assignFood(eventId, receiverId, personIds) {
+    const activeSession = sessionRef.current
+    if (!activeSession) throw Error('Please sign in again.')
+    if (foodMutationLock.current) throw Error('Food assignment is already in progress.')
+    if (!navigator.onLine) throw Error('You are offline. Reconnect and check eligibility before assigning food.')
+    if (!personIds.length || new Set(personIds).size !== personIds.length) throw Error('Select eligible family members.')
+    foodMutationLock.current = true; setFoodMutationBusy(true)
+    try {
+      await apiRef.current.assignFood(eventId, receiverId, personIds)
+      if (sessionRef.current !== activeSession) throw Error('Your session changed. Review the assignment after signing in again.')
+      // Only a confirmed server response is reported as success; no local serving is created.
+      void refreshEvents()
+    } finally { foodMutationLock.current = false; setFoodMutationBusy(false) }
+  }
   function checkCard(code) {
-    const result = checkFamilyCard({ ...stateRef.current, families: displayedState.families }, code)
+    if (!demoMode) return
+    const result = checkFamilyCard(stateRef.current, code)
     if (!result.ok) openDialog('result', { result })
     else openDialog('serve', { code, familyId: result.family.id })
   }
   function confirmServing(selectedUnitId, memberIds) {
-    if (dialog?.type !== 'serve') return
-    const result = commit(next => {
-      if (!demoMode) {
-        // Sample processing never changes API-backed pack counts.
-        const sample = { ...next, families: displayedState.families, units: structuredClone(liveUnits) }
-        const result = serve(sample, { code: dialog.code, unitId: selectedUnitId, memberIds, role, online })
-        next.total = sample.total
-        return result
-      }
-      return serve(next, { code: dialog.code, unitId: selectedUnitId, memberIds, role, online })
-    })
-    if (!demoMode && result.ok) {
-      result.message = 'Sample food entry updated'
-      result.detail += ' This is a local simulation; no entry or event count was saved to the API.'
-    }
+    if (!demoMode || dialog?.type !== 'serve') return
+    const result = commit(next => serve(next, { code: dialog.code, unitId: selectedUnitId, memberIds, role, online }))
     openDialog('result', { result })
   }
   async function signIn(email, password, selectedRole = 'agent') {
@@ -424,7 +442,7 @@ export function WorkspaceProvider({ children }) {
       window.removeEventListener('offline', onConnection)
     }
   }, [notify, authenticated, role, page])
-  const workspace = { demoMode, authenticated, loading, apiError, staffMutationBusy, volunteers, volunteersLoading, volunteersError, refreshVolunteers, inspectVolunteer, saveVolunteer, deleteVolunteer, saveReceiverName, deleteReceiver, saveFamilyMember, deleteFamilyMember, foodMutationBusy, updateFoodStatus, deleteFoodUnit, familiesLoading, familiesError, refreshFamilies, eventsLoading, eventsError, refreshEvents, signOut, state: displayedState, role, roleLabel, page, online, dialog, toast, unitId, setUnitId, profile, todayUnits, ownServings, navs, notify, navigate, openDialog, closeDialog, registerFamily, updateCard, planUnit, openUnit, checkCard, confirmServing, signIn, updateProfile, resetDemo, install, share: count => shareImpact(count ?? state.total, notify) }
+  const workspace = { loadServingEvents, loadEligibleMembers, assignFood, demoMode, authenticated, loading, apiError, staffMutationBusy, volunteers, volunteersLoading, volunteersError, refreshVolunteers, inspectVolunteer, saveVolunteer, deleteVolunteer, saveReceiverName, deleteReceiver, saveFamilyMember, deleteFamilyMember, foodMutationBusy, updateFoodStatus, deleteFoodUnit, familiesLoading, familiesError, refreshFamilies, eventsLoading, eventsError, refreshEvents, signOut, state: displayedState, role, roleLabel, page, online, dialog, toast, unitId, setUnitId, profile, todayUnits, ownServings, navs, notify, navigate, openDialog, closeDialog, registerFamily, updateCard, planUnit, openUnit, checkCard, confirmServing, signIn, updateProfile, resetDemo, install, share: count => shareImpact(count ?? state.total, notify) }
   return <WorkspaceContext.Provider value={workspace}>{children}</WorkspaceContext.Provider>
 }
 export function useWorkspace() {
