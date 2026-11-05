@@ -8,7 +8,15 @@ export function familyMembers(family) {
   return [{ name: family.name, relation: 'Self' }, ...members.filter(member => member.name !== family.name)]
 }
 export function recipients(family) { return familyMembers(family).map(member => member.name) }
-export function foodItemsText(items) { return Array.isArray(items) ? items.join(', ') : items }
+export function foodItemsText(items) {
+  if (!Array.isArray(items)) return items
+  return items.map(item => {
+    if (typeof item === 'string') return item
+    const quantity = [item.quantity, item.unit].filter(value => value != null && value !== '').join(' ')
+    return quantity ? `${item.name} (${quantity})` : item.name
+  }).join(', ')
+}
+
 export function checkFamilyCard(state, code) {
   const family = state.families.find(family => `${family.id}:${family.version}` === code)
   if (!family) return { ok: false, message: 'Card not recognized', detail: 'This card may have been replaced. Use the latest family card.' }

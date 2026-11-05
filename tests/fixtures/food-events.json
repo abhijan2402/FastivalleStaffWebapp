@@ -1,0 +1,165 @@
+{
+    "success": true,
+    "message": "Food events retrieved successfully",
+    "data": [
+        {
+            "id": "cmw3i1vpi0005qd9491olws8u",
+            "unitNumber": 1,
+            "name": "Abc",
+            "location": "Jauour",
+            "foodItems": [
+                {
+                    "name": "Abcc",
+                    "price": null,
+                    "quantity": null,
+                    "unit": null
+                },
+                {
+                    "name": "Agcc",
+                    "price": null,
+                    "quantity": null,
+                    "unit": null
+                }
+            ],
+            "dateTime": "2026-11-06T07:31:00.000Z",
+            "timezone": "Asia/Kolkata",
+            "mealType": "SINGLE_MEAL",
+            "mealsPerPerson": 1,
+            "totalPacks": 100,
+            "servedPacks": 1,
+            "status": "IN_PROGRESS",
+            "isActive": true,
+            "budget": "13000",
+            "currency": "USD",
+            "createdAt": "2026-11-05T12:06:04.230Z",
+            "updatedAt": "2026-11-05T17:37:00.565Z",
+            "foodItemNames": [
+                "Abcc",
+                "Agcc"
+            ],
+            "code": "FU-001",
+            "remainingPacks": 99,
+            "servedPercentage": 1,
+            "isAvailable": true
+        },
+        {
+            "id": "cmw3v5pi30000qdb1jl6sekl0",
+            "unitNumber": 3,
+            "name": "Community full-day food",
+            "location": "Community centre",
+            "foodItems": [
+                {
+                    "name": "Rice",
+                    "price": "600.00",
+                    "quantity": "10",
+                    "unit": "kg"
+                },
+                {
+                    "name": "Oil",
+                    "price": "360.00",
+                    "quantity": "2",
+                    "unit": "litre"
+                }
+            ],
+            "dateTime": "2026-11-06T06:30:00.000Z",
+            "timezone": "Asia/Calcutta",
+            "mealType": "FULL_DAY",
+            "mealsPerPerson": 3,
+            "totalPacks": 200,
+            "servedPacks": 0,
+            "status": "PLANNED",
+            "isActive": true,
+            "budget": "960",
+            "currency": "BDT",
+            "createdAt": "2026-11-05T18:12:57.820Z",
+            "updatedAt": "2026-11-05T18:12:57.820Z",
+            "foodItemNames": [
+                "Rice",
+                "Oil"
+            ],
+            "code": "FU-003",
+            "remainingPacks": 200,
+            "servedPercentage": 0,
+            "isAvailable": true
+        },
+        {
+            "id": "cmw3mewsb000gqd94hjpgxtdq",
+            "unitNumber": 2,
+            "name": "Lunch",
+            "location": "Korail",
+            "foodItems": [
+                {
+                    "name": "oil",
+                    "price": null,
+                    "quantity": null,
+                    "unit": null
+                },
+                {
+                    "name": "rice",
+                    "price": null,
+                    "quantity": null,
+                    "unit": null
+                }
+            ],
+            "dateTime": "2026-11-06T06:30:00.000Z",
+            "timezone": "Asia/Kolkata",
+            "mealType": "SINGLE_MEAL",
+            "mealsPerPerson": 1,
+            "totalPacks": 100,
+            "servedPacks": 3,
+            "status": "IN_PROGRESS",
+            "isActive": true,
+            "budget": "14.81",
+            "currency": "BDT",
+            "createdAt": "2026-11-05T14:08:10.619Z",
+            "updatedAt": "2026-11-05T17:36:03.302Z",
+            "foodItemNames": [
+                "oil",
+                "rice"
+            ],
+            "code": "FU-002",
+            "remainingPacks": 97,
+            "servedPercentage": 3,
+            "isAvailable": true
+        },
+        {
+            "id": "cmw3vax7o0001qdb1zv5m6ex1",
+            "unitNumber": 4,
+            "name": "Arr",
+            "location": "ssdd",
+            "foodItems": [
+                {
+                    "name": "jjjjj",
+                    "price": "900.00",
+                    "quantity": "7",
+                    "unit": "kg"
+                }
+            ],
+            "dateTime": "2026-11-05T06:30:00.000Z",
+            "timezone": "Asia/Calcutta",
+            "mealType": "SINGLE_MEAL",
+            "mealsPerPerson": 1,
+            "totalPacks": 300,
+            "servedPacks": 0,
+            "status": "PLANNED",
+            "isActive": true,
+            "budget": "19000",
+            "currency": "BDT",
+            "createdAt": "2026-11-05T18:17:01.092Z",
+            "updatedAt": "2026-11-05T18:17:01.092Z",
+            "foodItemNames": [
+                "jjjjj"
+            ],
+            "code": "FU-004",
+            "remainingPacks": 300,
+            "servedPercentage": 0,
+            "isAvailable": true
+        }
+    ],
+    "pagination": {
+        "total": 4,
+        "limit": 20,
+        "offset": 0,
+        "hasMore": false
+    }
+}

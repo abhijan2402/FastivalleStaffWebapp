@@ -1,3 +1,4 @@
+import { validFoodItem } from '../lib/foodItems.mjs'
 export class ApiError extends Error {
   constructor(message, status = 0) { super(message); this.status = status }
 }
@@ -78,12 +79,16 @@ export function createApi({ baseUrl, getToken = () => null, onUnauthorized = () 
 export function mapFoodEvent(event) {
   if (!event.id || !event.name || !event.dateTime) throw new ApiError('A food event is missing required fields.')
   const packs = Number(event.totalPacks ?? 0), served = Number(event.servedPacks ?? 0), price = Number(event.budget ?? 0)
-  if (!Number.isInteger(packs) || packs < 0 || !Number.isInteger(served) || served < 0 || !Number.isFinite(price) || price < 0 || !Array.isArray(event.foodItems ?? []) || (event.foodItems ?? []).some(item => typeof item !== 'string')) throw new ApiError('A food event contains invalid pack counts, budget or food items.')
+  if (!Number.isInteger(packs) || packs < 0 || !Number.isInteger(served) || served < 0 || !Number.isFinite(price) || price < 0 || !Array.isArray(event.foodItems ?? []) || (event.foodItems ?? []).some(item => typeof item === 'string' ? !item.trim() : !validFoodItem(item, { allowMissing: true }))) throw new ApiError('A food event contains invalid pack counts, budget or food items.')
+  const mealType = event.mealType ?? 'SINGLE_MEAL'
+  const mealsPerPerson = Number(event.mealsPerPerson ?? (mealType === 'FULL_DAY' ? 3 : 1))
+  if (!['SINGLE_MEAL', 'FULL_DAY'].includes(mealType) || !Number.isInteger(mealsPerPerson) || mealsPerPerson < 1 || (mealType === 'SINGLE_MEAL' && mealsPerPerson !== 1)) throw new ApiError('A food event has an invalid meal type or meals per person.')
+  if (event.timezone) { try { new Intl.DateTimeFormat('en', { timeZone: event.timezone }) } catch { throw new ApiError('A food event has an invalid timezone.') } }
   const date = new Date(event.dateTime)
   if (Number.isNaN(date.getTime())) throw new ApiError('A food event has an invalid date.')
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date)
   const part = type => parts.find(p => p.type === type).value
-  return { id: event.id, name: event.name, date: `${part('year')}-${part('month')}-${part('day')}`, dateTime: event.dateTime, location: event.location, items: event.foodItems ?? [], packs, served, price, currency: event.currency ?? 'BDT', status: event.status, isActive: event.isActive }
+  return { id: event.id, name: event.name, date: `${part('year')}-${part('month')}-${part('day')}`, dateTime: event.dateTime, timeZone: event.timezone, mealType, mealsPerPerson, location: event.location, items: event.foodItems ?? [], packs, served, price, currency: event.currency ?? 'BDT', status: event.status, isActive: event.isActive }
 }
 
 export function mapReceiver(receiver) {

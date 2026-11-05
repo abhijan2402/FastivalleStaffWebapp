@@ -253,10 +253,10 @@ export function WorkspaceProvider({ children }) {
   async function planUnit(data, editingId) {
     if (role !== 'agent') return
     if (!demoMode) {
-      const body = { name: data.name, location: data.location, foodItems: data.items, dateTime: data.dateTime, totalPacks: data.packs, budget: data.price.toFixed(2) }
+      const body = { name: data.name, location: data.location, foodItems: data.items, dateTime: data.dateTime, timezone: data.timeZone, mealType: data.mealType, mealsPerPerson: data.mealsPerPerson, totalPacks: data.packs, budget: data.price.toFixed(2), currency: data.currency, isActive: data.isActive }
       const saved = await changeFood(() => editingId
         ? apiRef.current.updateFoodEvent(editingId, body)
-        : apiRef.current.createFoodEvent({ ...body, servedPacks: 0, isActive: data.isActive, currency: data.currency }), editingId ? 'Food event updated on the server' : 'Food event created on the server')
+        : apiRef.current.createFoodEvent(body), editingId ? 'Food event updated on the server' : 'Food event created on the server')
       if (saved) navigate('units')
       return
     }
