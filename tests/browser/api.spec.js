@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import jsQR from 'jsqr'
 test.use({ timezoneId: 'Asia/Kolkata' })
 const demoMode = process.env.VITE_DEMO_MODE === 'true'
 test.skip(demoMode, 'API integration tests run in the default live build.')
@@ -555,7 +556,27 @@ test('family card printing is disabled and QR printing excludes family details',
   await page.getByRole('button', { name: 'Register a family', exact: true }).click()
   await page.getByLabel('Receiver name').fill('QR Print Receiver')
   await page.getByRole('button', { name: 'Register family', exact: true }).click()
-  await page.getByRole('button', { name: 'Mark family complete', exact: true }).click()
+  await expect(page.locator('#print-qr svg')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Mark family complete', exact: true })).toHaveCount(0)
+  const pixels = await page.locator('#print-qr svg').evaluate(async svg => {
+    const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }))
+    try {
+      const image = new Image(); image.src = url; await image.decode()
+      const canvas = document.createElement('canvas'); canvas.width = canvas.height = 300
+      const context = canvas.getContext('2d')
+      context.fillStyle = 'white'; context.fillRect(0, 0, 300, 300)
+      context.drawImage(image, 0, 0, 300, 300)
+      return Array.from(context.getImageData(0, 0, 300, 300).data)
+    } finally { URL.revokeObjectURL(url) }
+  })
+  expect(jsQR(new Uint8ClampedArray(pixels), 300, 300)?.data).toBe('receiver-1')
+  const originalQr = await page.locator('#print-qr').innerHTML()
+  await page.reload()
+  await page.locator('.sidebar [data-page="families"]').click()
+  await expect(page.getByRole('row', { name: /QR Print Receiver/ })).toBeVisible()
+  await page.getByRole('button', { name: 'View card', exact: false }).click()
+  await expect(page.locator('#print-qr svg')).toBeVisible()
+  expect(await page.locator('#print-qr').innerHTML()).toBe(originalQr)
   await expect(page.getByRole('button', { name: 'Print family card', exact: true })).toBeDisabled()
   await page.evaluate(() => { window.print = () => { window.qrPrintCalled = true } })
   await page.getByRole('button', { name: 'Print QR code', exact: true }).click()

@@ -91,7 +91,7 @@ export function mapReceiver(receiver) {
   return {
     id: receiver.id, name: receiver.name, mobile: receiver.phone || '', email: receiver.email || '', photo: receiver.profilePic || null,
     members: [{ id: receiver.id, name: receiver.name, relation: 'Self' }, ...(receiver.familyMembers || []).filter(member => !member.isSelf).map(member => ({ id: member.id, name: member.name, relation: member.relationship || '' }))],
-    // QR lifecycle endpoints are absent; any QR issued in this panel is a sample.
+    // Profile completeness is separate from the stable receiver-ID QR shown on live family cards.
     status: 'open', card: null, version: 0,
   }
 }
