@@ -11,3 +11,31 @@
 
 .dashboard-shortcuts{display:flex;flex-wrap:wrap;gap:12px}.dashboard-shortcuts .btn{justify-content:flex-start;min-height:48px}.scan-family-details{padding:18px;background:#f3f6e9;border-radius:10px;margin:16px 0 22px}.scan-family-details h3{font-size:18px;margin-bottom:8px}.scan-family-details p,.food-event-details p{font-size:12px;line-height:1.8;margin:5px 0;color:#6b7b60}.scan-family-details .badge{margin-top:8px}.scanned-photo{width:64px;height:64px;object-fit:cover;border-radius:8px;float:right}.recipient-list{border:0;padding:0;margin:16px 0}.recipient-option{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:8px;padding:14px;margin:8px 0;cursor:pointer}.recipient-option:has(input:checked){background:#f3f6e9;border-color:#80966a}.recipient-option input{width:18px;min-height:18px;accent-color:var(--green)}.recipient-option strong{font-size:13px}.recipient-option small{display:block;font-size:11px;color:#6b7b60;margin-top:5px}.process-actions{display:flex;gap:12px;margin-top:20px}.process-actions .primary{flex:1}.process-food .serve-summary{align-items:flex-start;gap:16px;line-height:1.7}.process-food .serve-summary strong{text-align:right}.food-event-details{padding:16px;border:1px solid var(--line);border-radius:8px;margin-bottom:16px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}button:disabled{opacity:.5;cursor:not-allowed}@media(max-width:600px){.dashboard-shortcuts{display:grid;grid-template-columns:1fr;width:100%}}
 .scanner-only{max-width:680px;margin:0 auto}.scanner-only .camera-frame{height:400px}.family-member-fields{border:1px solid var(--line);border-radius:8px;padding:14px;margin:14px 0}.family-member-fields .field{margin:0 0 12px}.food-item-list{list-style:none;padding:0;margin:14px 0;display:flex;gap:8px;flex-wrap:wrap}.food-item-list li{display:flex;align-items:center;gap:10px;padding:4px 8px 4px 14px;background:#f3f6e9;border:1px solid var(--line);border-radius:20px;font-size:12px}.food-item-list .icon-btn{width:28px;height:28px}@media(max-width:600px){.scanner-only .camera-frame{height:320px}}
+
+.login-shell { min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
+.login-panel { width: min(100%, 440px); }
+.data-notice { margin-bottom: 24px; }
+.data-notice p { margin: 8px 0 12px; }
+.family-form-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+
+.family-detail > .small-note { grid-column: 1 / -1; }
+.food-management { display: grid; gap: 12px; margin-top: 20px; }
+.record-details { display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; margin: 20px 0; }
+.record-details dt { font-weight: 600; }
+.record-details dd { margin: 0; overflow-wrap: anywhere; }
+.record-actions, .family-management { display: grid; gap: 12px; }
+.family-management > form { padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.delete-confirm { padding: 16px; border: 1px solid var(--line); border-radius: 8px; }
+.delete-confirm .btn { margin: 8px 8px 0 0; }
+.food-events-status { margin-bottom: 20px; }
+
+.brand-logo { display: block; width: 139px; height: auto; object-fit: contain; }
+.brand .brand-logo { width: 139px; height: 51px; border-radius: 0; }
+.login-brand { margin-bottom: 20px; }
+.mobile-brand { display: none; }
+.card-brand .brand-logo { margin: 0 auto 16px; }
+@media (max-width: 600px) {
+  .mobile-brand { display: block; flex-shrink: 0; }
+  .mobile-brand .brand-logo { width: 112px; height: auto; }
+  .topbar .breadcrumb { display: none; }
+}

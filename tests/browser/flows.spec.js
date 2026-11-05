@@ -1,5 +1,6 @@
 import{test,expect}from'@playwright/test';
 import qrcode from 'qrcode-generator'
+test.skip(process.env.VITE_DEMO_MODE !== 'true', 'Static demo flows require VITE_DEMO_MODE=true.')
 // Feed a real QR image through a camera stream so tests exercise decoding.
 async function scanCard(page, code) {
   const qr = qrcode(0, 'M')

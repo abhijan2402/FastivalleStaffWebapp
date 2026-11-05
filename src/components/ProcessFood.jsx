@@ -4,7 +4,7 @@ import { recipients, familyMembers, foodItemsText } from '../domain.mjs'
 import { useWorkspace } from '../state/WorkspaceContext.jsx'
 
 export default function ProcessFood({ family }) {
-  const { state, todayUnits, unitId, confirmServing } = useWorkspace()
+  const { state, demoMode, todayUnits, unitId, confirmServing } = useWorkspace()
   const [step, setStep] = useState('members')
   const [selected, setSelected] = useState([])
   const [eventId, setEventId] = useState(() => todayUnits.some(unit => unit.id === unitId) ? unitId : '')
@@ -42,7 +42,7 @@ export default function ProcessFood({ family }) {
       {event && <div className="food-event-details"><h3>{event.name}</h3><p>{foodItemsText(event.items)}</p><p>{event.date}</p><p>{selected.length} food pack{selected.length === 1 ? '' : 's'}</p></div>}
       {alreadyProcessed && <p role="alert" className="error">Already processed: one or more selected people have an entry for this event. Go back to change recipients.</p>}
       {event && !enoughPacks && <p role="alert" className="error">Not enough packs for the selected people. Choose another event or fewer recipients.</p>}
-      <p className="small-note">Process food updates the entry. Food is handed over to the selected people outside the app.</p>
+      <p className="small-note">{demoMode ? 'Process food updates the entry. Food is handed over to the selected people outside the app.' : 'Sample processing only: no food entry or pack count will be saved to the API.'}</p>
       <div className="process-actions"><button className="btn secondary" onClick={() => setStep('members')}>Back</button><button className="btn primary" disabled={!event || !enoughPacks || alreadyProcessed || !selected.length} onClick={() => confirmServing(eventId, selected)}>Process food</button></div>
     </>}
   </div>

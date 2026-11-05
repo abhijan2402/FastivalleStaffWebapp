@@ -9,7 +9,8 @@
     "check": "npm run build",
     "test": "npm run test:domain && npm run test:browser",
     "test:domain": "node --test tests/domain.test.mjs",
-    "test:browser": "npm run build && playwright test"
+    "test:browser": "npm run build && playwright test",
+    "icons": "node scripts/generate-icons.mjs"
   },
   "keywords": [],
   "author": "",
