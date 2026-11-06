@@ -4,7 +4,7 @@ test.use({ timezoneId: 'Asia/Kolkata' })
 const demoMode = process.env.VITE_DEMO_MODE === 'true'
 test.skip(demoMode, 'API integration tests run in the default live build.')
 
-async function mockApi(page, { expired = false, eventsFail = false, memberFailOnce = false, receiversForbidden = false, receiverUncertain = false, foodForbidden = false, foodWriteFail = false, foodCount = 1, volunteerCount = 0, volunteersForbidden = false, volunteerWriteFail = false, volunteerUncertain = false, receiverRecords = [] } = {}) {
+async function mockApi(page, { expired = false, eventsFail = false, memberFailOnce = false, receiversForbidden = false, receiverUncertain = false, foodForbidden = false, foodWriteFail = false, foodCount = 1, volunteerCount = 0, volunteersForbidden = false, volunteerWriteFail = false, volunteerUncertain = false, receiverRecords = [], receiverArrayResponse = false } = {}) {
   const requests = []
   const receivers = [...receiverRecords]
   const members = []
@@ -66,7 +66,7 @@ async function mockApi(page, { expired = false, eventsFail = false, memberFailOn
         receivers.push(receiver)
         return route.fulfill({ status: 201, json: { data: { receiver } } })
       }
-      return route.fulfill({ json: { data: { receivers, total: receivers.length } } })
+      return route.fulfill({ json: receiverArrayResponse ? { success: true, data: receivers, pagination: { total: receivers.length, limit: 20, offset: 0, hasMore: false } } : { data: { receivers, total: receivers.length } } })
     }
     if (path.endsWith('/family-members')) {
       if (request.method() === 'POST') {
@@ -879,4 +879,50 @@ test('family list badges and filters use the receiver isActive flag', async ({ p
   await expect(page.getByRole('row', { name: /Sameer Roy/ }).getByText('Inactive', { exact: true })).toBeVisible()
   await filter.selectOption('All families')
   await expect(page.locator('tbody tr')).toHaveCount(3)
+})
+
+
+test('API photo URLs render in the list and Manage family with the image server cross-origin policy', async ({ page }) => {
+  const jpegUrl = 'https://api.fastivalle.org/uploads/receivers/2d90f14b-db3a-445a-97b4-9ed729451783.jpg'
+  const pngUrl = 'https://api.fastivalle.org/uploads/receivers/160c73e9-8117-4cfb-8d42-4326690c87f9.png'
+  await mockApi(page, { receiverArrayResponse: true, receiverRecords: [
+    { id: 'receiver-jpeg', name: 'JPEG Receiver', phone: '8787878777', profilePic: jpegUrl, isActive: true },
+    { id: 'receiver-png', name: 'PNG Receiver', profilePic: pngUrl, isActive: true },
+    { id: 'receiver-no-photo', name: 'No Photo Receiver', profilePic: null, isActive: true },
+  ] })
+  await login(page, 'agent')
+  const pictures = await page.evaluate(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 40
+    canvas.height = 30
+    canvas.getContext('2d').fillRect(0, 0, 40, 30)
+    return { jpeg: canvas.toDataURL('image/jpeg').split(',')[1], png: canvas.toDataURL('image/png').split(',')[1] }
+  })
+  const imageRequests = []
+  await page.route('https://api.fastivalle.org/uploads/receivers/**', async route => {
+    imageRequests.push(route.request().url())
+    const jpeg = route.request().url().endsWith('.jpg')
+    await route.fulfill({ status: 200, headers: {
+      'Content-Type': jpeg ? 'image/jpeg' : 'image/png',
+      'Access-Control-Allow-Origin': '*',
+      'Cross-Origin-Resource-Policy': 'same-origin',
+    }, body: Buffer.from(jpeg ? pictures.jpeg : pictures.png, 'base64') })
+  })
+  await page.locator('.sidebar [data-page="families"]').click()
+  for (const [name, url] of [['JPEG Receiver', jpegUrl], ['PNG Receiver', pngUrl]]) {
+    const row = page.getByRole('row', { name: new RegExp(name) })
+    const thumbnail = row.locator('.family-avatar img')
+    await expect(thumbnail).toHaveAttribute('src', url)
+    await expect(thumbnail).toHaveAttribute('crossorigin', 'anonymous')
+    await expect.poll(() => thumbnail.evaluate(img => img.naturalWidth)).toBe(40)
+    await row.getByRole('button', { name: 'View card', exact: false }).click()
+    await page.getByRole('button', { name: 'Manage family', exact: true }).click()
+    const currentPhoto = page.getByAltText('Current family photo')
+    await expect(currentPhoto).toHaveAttribute('src', url)
+    await expect(currentPhoto).toHaveAttribute('crossorigin', 'anonymous')
+    await expect.poll(() => currentPhoto.evaluate(img => img.naturalWidth)).toBe(40)
+    await page.getByRole('button', { name: 'Close dialog', exact: true }).click()
+  }
+  expect(imageRequests.length).toBeGreaterThanOrEqual(2)
+  await expect(page.getByRole('row', { name: /No Photo Receiver/ }).locator('.family-avatar')).toHaveText('NPR')
 })

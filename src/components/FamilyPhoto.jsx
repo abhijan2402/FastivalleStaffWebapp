@@ -101,7 +101,7 @@ export default function FamilyPhoto({ photo, existingPhoto, onChange, onProcessi
         <button type="button" className="btn secondary" onClick={closeCamera}>Cancel camera</button>
       </div>
     </div>}
-    {!photo && existingPhoto && <div className="photo-selection"><img src={existingPhoto} alt="Current family photo" /><span>Current photo</span></div>}
+    {!photo && existingPhoto && <div className="photo-selection"><img crossOrigin="anonymous" src={existingPhoto} alt="Current family photo" /><span>Current photo</span></div>}
     {photo && preview && <div className="photo-selection"><img src={preview} alt="Selected family photo" /><span>{photo.name}</span><button type="button" className="text-btn" onClick={() => onChange(null)}>Remove photo</button></div>}
     {processing && <p role="status">Compressing photo…</p>}
     <p className="small-note">Photos are automatically compressed before saving. Upload images up to 20 MB.</p>

@@ -16,7 +16,7 @@ export default function ProcessFood({ family }) {
   return <div className="process-food">
     <p className="subtle">{step === 'members' ? 'Step 1 of 2 · Select recipients' : 'Step 2 of 2 · Choose food event'}</p>
     <section className="scan-family-details">
-      {family.photo && <img className="scanned-photo" src={family.photo} alt={family.name} />}
+      {family.photo && <img className="scanned-photo" crossOrigin="anonymous" src={family.photo} alt={family.name} />}
       <h3>{family.name}</h3>
       <p>{family.id}</p>
       {family.mobile && <p>Mobile: {family.mobile}</p>}
