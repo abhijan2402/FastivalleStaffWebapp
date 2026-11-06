@@ -14,7 +14,23 @@ async function mockApi(page, { expired = false, eventsFail = false, memberFailOn
   await page.route('https://api.fastivalle.org/api/**', async route => {
     const request = route.request()
     const path = new URL(request.url()).pathname
-    requests.push({ path, method: request.method(), token: request.headers().authorization, body: request.postDataJSON() })
+    const contentType = request.headers()['content-type'] || ''
+    let body
+    const files = {}
+    if (contentType.startsWith('multipart/form-data')) {
+      body = {}
+      const form = await new Response(request.postDataBuffer(), { headers: { 'Content-Type': contentType } }).formData()
+      for (const [key, value] of form) {
+        if (typeof value === 'string') body[key] = value
+        else {
+          const buffer = Buffer.from(await value.arrayBuffer())
+          files[key] = { name: value.name, type: value.type, size: value.size }
+          // Simulate the stored photo URL used by list/detail responses.
+          body[key] = `data:${value.type};base64,${buffer.toString('base64')}`
+        }
+      }
+    } else body = request.postDataJSON()
+    requests.push({ path, method: request.method(), token: request.headers().authorization, body, contentType, files })
     if (path.endsWith('/login')) return route.fulfill({ json: { data: { accessToken: 'test-access-token' } } })
     if (expired) return route.fulfill({ status: 401, json: { message: 'Session expired' } })
     if (path.endsWith('/profile')) return route.fulfill({ json: { data: { name: 'API Staff', email: 'staff@example.com', phone: '1234567890' } } })
@@ -25,7 +41,7 @@ async function mockApi(page, { expired = false, eventsFail = false, memberFailOn
       if (path === '/api/admin/volunteers') {
         if (request.method() === 'POST') {
           if (volunteerUncertain) return route.fulfill({ status: 500, json: { message: 'Volunteer service unavailable' } })
-          const volunteer = { id: `volunteer-${volunteers.length + 1}`, ...request.postDataJSON() }
+          const volunteer = { id: `volunteer-${volunteers.length + 1}`, ...body }
           volunteers.push(volunteer)
           return route.fulfill({ status: 201, json: { data: { volunteer } } })
         }
@@ -36,14 +52,17 @@ async function mockApi(page, { expired = false, eventsFail = false, memberFailOn
       if (index < 0) return route.fulfill({ status: 404, json: { message: 'Volunteer not found' } })
       if (request.method() === 'GET') return route.fulfill({ json: { data: { volunteer: volunteers[index] } } })
       if (request.method() === 'DELETE') volunteers.splice(index, 1)
-      else Object.assign(volunteers[index], request.postDataJSON())
+      else Object.assign(volunteers[index], body)
       return route.fulfill({ status: 204 })
     }
     if (path.startsWith('/api/admin/receivers') && receiversForbidden) return route.fulfill({ status: 403, json: { message: 'You do not have permission to manage receivers' } })
+    if (path.startsWith('/api/admin/receivers') && ['POST', 'PATCH'].includes(request.method()) && body?.profilePic && !files.profilePic) {
+      return route.fulfill({ status: 422, json: { success: false, message: 'Validation failed', errors: [{ field: 'profilePic', message: 'Invalid value' }] } })
+    }
     if (path === '/api/admin/receivers') {
       if (request.method() === 'POST') {
         if (receiverUncertain) return route.fulfill({ status: 500, json: { message: 'Connection to database lost' } })
-        const receiver = { id: `receiver-${receivers.length + 1}`, ...request.postDataJSON() }
+        const receiver = { id: `receiver-${receivers.length + 1}`, ...body }
         receivers.push(receiver)
         return route.fulfill({ status: 201, json: { data: { receiver } } })
       }
@@ -53,7 +72,7 @@ async function mockApi(page, { expired = false, eventsFail = false, memberFailOn
       if (request.method() === 'POST') {
         memberAttempts++
         if (memberFailOnce && memberAttempts === 2) return route.fulfill({ status: 422, json: { message: 'Member could not be saved' } })
-        const member = { id: `member-${members.length + 1}`, ...request.postDataJSON() }
+        const member = { id: `member-${members.length + 1}`, ...body }
         members.push(member)
         return route.fulfill({ status: 201, json: { data: { familyMember: member } } })
       }
@@ -65,12 +84,12 @@ async function mockApi(page, { expired = false, eventsFail = false, memberFailOn
         const index = members.findIndex(member => member.id === segments[6])
         if (index < 0) return route.fulfill({ status: 404, json: { message: 'Member not found' } })
         if (request.method() === 'DELETE') members.splice(index, 1)
-        else Object.assign(members[index], request.postDataJSON())
+        else Object.assign(members[index], body)
       } else {
         const index = receivers.findIndex(receiver => receiver.id === segments[4])
         if (index < 0) return route.fulfill({ status: 404, json: { message: 'Receiver not found' } })
         if (request.method() === 'DELETE') receivers.splice(index, 1)
-        else Object.assign(receivers[index], request.postDataJSON())
+        else Object.assign(receivers[index], body)
       }
       return route.fulfill({ status: 204 })
     }
@@ -78,7 +97,7 @@ async function mockApi(page, { expired = false, eventsFail = false, memberFailOn
     if (path.startsWith('/api/admin/food-events') && request.method() !== 'GET') {
       if (foodWriteFail) return route.fulfill({ status: 422, json: { message: 'Cannot change food event' } })
       if (path === '/api/admin/food-events') {
-        const foodEvent = { id: `created-${foodEvents.length + 1}`, ...request.postDataJSON() }
+        const foodEvent = { id: `created-${foodEvents.length + 1}`, ...body }
         foodEvents.push(foodEvent)
         return route.fulfill({ status: 201, json: { data: { foodEvent } } })
       }
@@ -86,7 +105,7 @@ async function mockApi(page, { expired = false, eventsFail = false, memberFailOn
       const index = foodEvents.findIndex(item => item.id === id)
       if (index < 0) return route.fulfill({ status: 404, json: { message: 'Food event not found' } })
       if (request.method() === 'DELETE') foodEvents.splice(index, 1)
-      else Object.assign(foodEvents[index], request.postDataJSON())
+      else Object.assign(foodEvents[index], body)
       return route.fulfill({ status: 204 })
     }
     if (path === '/api/volunteer/food-events' && request.method() !== 'GET') return route.fulfill({ status: 404, json: { message: `Route ${new URL(request.url()).pathname}${new URL(request.url()).search} not found` } })
@@ -526,7 +545,11 @@ test('family registration uploads a photo and sends it with the receiver', async
   await page.getByLabel('Receiver name').fill('Photo Receiver')
   await page.getByRole('button', { name: 'Register family', exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText('receiver-1')
-  expect(requests.find(r => r.path === '/api/admin/receivers' && r.method === 'POST').body.profilePic).toMatch(/^data:image\/jpeg;base64,/)
+  const photoRequest = requests.find(r => r.path === '/api/admin/receivers' && r.method === 'POST')
+  expect(photoRequest.contentType).toMatch(/^multipart\/form-data; boundary=/)
+  expect(photoRequest.files.profilePic).toMatchObject({ type: 'image/jpeg' })
+  expect(photoRequest.files.profilePic.name).toMatch(/\.jpg$/)
+  expect(photoRequest.body.profilePic).toMatch(/^data:image\/jpeg;base64,/)
 })
 
 test('family camera captures a photo, stops its stream and saves the image', async ({ page }) => {
@@ -558,7 +581,11 @@ test('family camera captures a photo, stops its stream and saves the image', asy
   await page.getByLabel('Receiver name').fill('Camera Receiver')
   await page.getByRole('button', { name: 'Register family', exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText('receiver-1')
-  expect(requests.find(r => r.path === '/api/admin/receivers' && r.method === 'POST').body.profilePic).toMatch(/^data:image\/jpeg;base64,/)
+  const photoRequest = requests.find(r => r.path === '/api/admin/receivers' && r.method === 'POST')
+  expect(photoRequest.contentType).toMatch(/^multipart\/form-data; boundary=/)
+  expect(photoRequest.files.profilePic).toMatchObject({ type: 'image/jpeg' })
+  expect(photoRequest.files.profilePic.name).toMatch(/\.jpg$/)
+  expect(photoRequest.body.profilePic).toMatch(/^data:image\/jpeg;base64,/)
 })
 
 test('family camera permission denial allows photo upload', async ({ page }) => {
@@ -720,6 +747,10 @@ test('family update replaces an existing photo by upload and preserves it on nam
   await expect(page.getByRole('dialog')).toHaveCount(0)
   const updatedPhoto = requests.filter(r => r.method === 'PATCH').at(-1).body.profilePic
   expect(updatedPhoto).toMatch(/^data:image\/jpeg;base64,/)
+  expect(requests.filter(r => r.method === 'PATCH').at(-1)).toMatchObject({
+    contentType: expect.stringMatching(/^multipart\/form-data; boundary=/),
+    files: { profilePic: { name: 'replacement.jpg', type: 'image/jpeg', size: expect.any(Number) } },
+  })
   expect(requests.filter(r => r.method === 'PATCH').at(-1)).toMatchObject({ token: 'Bearer test-access-token', body: { name: 'Photo Update Receiver', profilePic: updatedPhoto } })
   await page.reload()
   await page.locator('.sidebar [data-page="families"]').click()
@@ -752,7 +783,10 @@ test('family update can capture and save a camera photo', async ({ page }) => {
   expect(await page.evaluate(() => window.familyCameraStream.getVideoTracks()[0].readyState)).toBe('ended')
   await page.getByRole('button', { name: 'Save receiver', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  expect(requests.filter(r => r.method === 'PATCH').at(-1).body.profilePic).toMatch(/^data:image\/jpeg;base64,/)
+  const photoRequest = requests.filter(r => r.method === 'PATCH').at(-1)
+  expect(photoRequest.contentType).toMatch(/^multipart\/form-data; boundary=/)
+  expect(photoRequest.files.profilePic).toMatchObject({ type: 'image/jpeg', name: 'family-photo.jpg' })
+  expect(photoRequest.body.profilePic).toMatch(/^data:image\/jpeg;base64,/)
 })
 
 

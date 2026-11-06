@@ -5,7 +5,7 @@ import FamilyPhoto from './FamilyPhoto.jsx'
 export default function FamilyManagement({ family }) {
   const { saveReceiverName, deleteReceiver, saveFamilyMember, deleteFamilyMember, staffMutationBusy } = useWorkspace()
   const [name, setName] = useState(family.name)
-  const [photo, setPhoto] = useState(null), [readingPhoto, setReadingPhoto] = useState(false)
+  const [photo, setPhoto] = useState(null)
   const [processingPhoto, setProcessingPhoto] = useState(false)
   const [memberNames, setMemberNames] = useState(() => Object.fromEntries(family.members.filter(member => member.relation !== 'Self').map(member => [member.id, member.name])))
   const [newName, setNewName] = useState(''), [relation, setRelation] = useState('')
@@ -22,20 +22,9 @@ export default function FamilyManagement({ family }) {
   async function saveReceiver(event) {
     event.preventDefault()
     if (!name.trim() || busy) return
-    setReadingPhoto(true)
-    await run(async () => {
-      let image
-      if (photo) image = await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result)
-        reader.onerror = () => reject(Error('The photo could not be read.'))
-        reader.readAsDataURL(photo)
-      })
-      await saveReceiverName(family.id, name, image)
-    })
-    setReadingPhoto(false)
+    await run(() => saveReceiverName(family.id, name, photo || undefined))
   }
-  const busy = staffMutationBusy || needsReview || readingPhoto || processingPhoto
+  const busy = staffMutationBusy || needsReview || processingPhoto
   return <div className="family-management">
     <form aria-label="Edit receiver" onSubmit={saveReceiver}>
       <label className="field">Receiver name<input value={name} disabled={busy} onChange={event => setName(event.target.value)} required /></label>

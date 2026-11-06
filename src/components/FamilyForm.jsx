@@ -19,9 +19,7 @@ export default function FamilyForm() {
     if (photo && photo.size > 2 * 1024 * 1024) { setError('Choose a photo smaller than 2 MB.'); return }
     setSaving(true)
     try {
-      let image
-      if (photo) image = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(Error('The photo could not be read.')); reader.readAsDataURL(photo) })
-      await registerFamily({ name, mobile, email, members: [{ name: name.trim(), relation: 'Self' }, ...members], full, photo: image }, progress.current)
+      await registerFamily({ name, mobile, email, members: [{ name: name.trim(), relation: 'Self' }, ...members], full, photo }, progress.current)
     } catch (issue) { setError(issue.message); setSaving(false) }
   }
   return <form onSubmit={submit}><fieldset disabled={saving} className="family-form-fields">

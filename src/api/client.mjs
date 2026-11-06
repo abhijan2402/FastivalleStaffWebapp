@@ -8,9 +8,10 @@ export function createApi({ baseUrl, getToken = () => null, onUnauthorized = () 
     const timer = setTimeout(() => controller.abort(), 20000)
     try {
       const token = authenticated ? getToken() : null
+      const multipart = body instanceof FormData
       const response = await fetcher(`${baseUrl.replace(/\/$/, '')}${path}`, {
-        method, headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        ...(body !== undefined ? { body: JSON.stringify(body) } : {}), signal: controller.signal, cache: 'no-store',
+        method, headers: { Accept: 'application/json', ...(body !== undefined && !multipart ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        ...(body !== undefined ? { body: multipart ? body : JSON.stringify(body) } : {}), signal: controller.signal, cache: 'no-store',
       })
       if (response.status === 401 && authenticated) onUnauthorized()
       const raw = await response.text()
@@ -37,6 +38,14 @@ export function createApi({ baseUrl, getToken = () => null, onUnauthorized = () 
     }
   }
   const authPath = role => `/api/${role === 'agent' ? 'field-manager' : 'volunteer'}/auth`
+  function receiverBody(body) {
+    if (!(body.profilePic instanceof Blob)) return body
+    const form = new FormData()
+    for (const [key, value] of Object.entries(body)) {
+      if (value !== undefined && value !== null) form.append(key, value)
+    }
+    return form
+  }
   return {
     login: (role, email, password) => request(`${authPath(role)}/login`, { method: 'POST', authenticated: false, body: { email, password } }),
     profile: role => request(`${authPath(role)}/profile`),
@@ -46,11 +55,11 @@ export function createApi({ baseUrl, getToken = () => null, onUnauthorized = () 
     createVolunteer: body => request('/api/admin/volunteers', { method: 'POST', body }),
     updateVolunteer: (id, body) => request(`/api/admin/volunteers/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
     deleteVolunteer: id => request(`/api/admin/volunteers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    updateReceiver: (id, body) => request(`/api/admin/receivers/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+    updateReceiver: (id, body) => request(`/api/admin/receivers/${encodeURIComponent(id)}`, { method: 'PATCH', body: receiverBody(body) }),
     deleteReceiver: id => request(`/api/admin/receivers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     updateFamilyMember: (receiverId, id, body) => request(`/api/admin/receivers/${encodeURIComponent(receiverId)}/family-members/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
     deleteFamilyMember: (receiverId, id) => request(`/api/admin/receivers/${encodeURIComponent(receiverId)}/family-members/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    createReceiver: body => request('/api/admin/receivers', { method: 'POST', body }),
+    createReceiver: body => request('/api/admin/receivers', { method: 'POST', body: receiverBody(body) }),
     addFamilyMember: (receiverId, body) => request(`/api/admin/receivers/${encodeURIComponent(receiverId)}/family-members`, { method: 'POST', body }),
     async receivers() {
       const receivers = await list('/api/admin/receivers', ['receivers', 'items', 'results'])

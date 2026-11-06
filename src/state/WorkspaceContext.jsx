@@ -115,7 +115,13 @@ export function WorkspaceProvider({ children }) {
   async function registerFamily(data, progress = {}) {
     if (role !== 'agent') return
     if (demoMode) {
-      const family = commit(next => createFamily(next, data))
+      const photo = data.photo ? await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(Error('The photo could not be read.'))
+        reader.readAsDataURL(data.photo)
+      }) : null
+      const family = commit(next => createFamily(next, { ...data, photo }))
       openDialog('family', { familyId: family.id })
       notify('Sample family registered on this device')
       return
