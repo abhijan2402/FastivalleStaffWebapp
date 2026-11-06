@@ -12,7 +12,7 @@ import { useWorkspace } from './state/WorkspaceContext.jsx'
 const views = { overview: OverviewView, families: FamiliesView, units: UnitsView, volunteers: VolunteersView, scan: ScanView }
 export default function App() {
   const { state, demoMode, authenticated, role, roleLabel, page, online, dialog, toast, profile, navs, navigate, openDialog, install } = useWorkspace()
-  if (!demoMode && !authenticated) return <main className="login-shell"><section className="panel login-panel"><BrandLogo className="login-brand" /><h1>Fastivalle staff panel</h1><LoginForm /></section></main>
+  if (!demoMode && !authenticated) return <main className="login-shell"><section className="panel login-panel"><BrandLogo className="login-brand" /><h1>Staff Panel</h1><LoginForm /></section></main>
   const initials = profile.name.split(' ').map(name => name[0]).join('')
   const View = views[page]
   return <>

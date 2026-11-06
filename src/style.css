@@ -31,7 +31,7 @@
 
 .brand-logo { display: block; width: 139px; height: auto; object-fit: contain; }
 .brand .brand-logo { width: 139px; height: 51px; border-radius: 0; }
-.login-brand { margin-bottom: 20px; }
+.login-brand { margin: 0 auto 20px; }
 .mobile-brand { display: none; }
 .card-brand .brand-logo { margin: 0 auto 16px; }
 @media (max-width: 600px) {
