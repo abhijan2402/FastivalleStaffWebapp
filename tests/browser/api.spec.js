@@ -684,3 +684,71 @@ test('the supplied food list loads legacy null details and structured items toge
   await expect(page.getByLabel('Meal type', { exact: true })).toHaveValue('FULL_DAY')
   await expect(page.getByLabel('Meals per person')).toHaveValue('3')
 })
+
+
+test('family update replaces an existing photo by upload and preserves it on name-only edits', async ({ page }) => {
+  const requests = await mockApi(page)
+  await login(page, 'agent')
+  await page.getByRole('button', { name: 'Register a family', exact: true }).click()
+  await page.getByLabel('Receiver name').fill('Photo Update Receiver')
+  const buffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZkAAAAASUVORK5CYII=', 'base64')
+  const original = `data:image/png;base64,${buffer.toString('base64')}`
+  await page.getByLabel('Upload family photo').setInputFiles({ name: 'original.png', mimeType: 'image/png', buffer })
+  await page.getByRole('button', { name: 'Register family', exact: true }).click()
+  await page.getByRole('button', { name: 'Manage family', exact: true }).click()
+  await expect(page.getByAltText('Current family photo')).toHaveAttribute('src', original)
+  await page.getByLabel('Upload family photo').setInputFiles({ name: 'invalid.txt', mimeType: 'text/plain', buffer: Buffer.from('invalid') })
+  await expect(page.locator('.family-photo').getByRole('alert')).toContainText('Choose an image file')
+  await page.getByLabel('Upload family photo').setInputFiles({ name: 'large.png', mimeType: 'image/png', buffer: Buffer.alloc(2 * 1024 * 1024 + 1) })
+  await expect(page.locator('.family-photo').getByRole('alert')).toContainText('smaller than 2 MB')
+  const replacement = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="green"/></svg>`)
+  const chooserPromise = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: 'Upload photo', exact: true }).click()
+  await (await chooserPromise).setFiles({ name: 'replacement.svg', mimeType: 'image/svg+xml', buffer: replacement })
+  await expect(page.getByAltText('Selected family photo')).toBeVisible()
+  await page.getByRole('button', { name: 'Remove photo', exact: true }).click()
+  await expect(page.getByAltText('Current family photo')).toHaveAttribute('src', original)
+  await page.getByRole('button', { name: 'Save receiver', exact: true }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(requests.filter(r => r.method === 'PATCH').at(-1).body).toEqual({ name: 'Photo Update Receiver' })
+  await page.locator('.sidebar [data-page="families"]').click()
+  await page.getByRole('button', { name: 'View card', exact: false }).click()
+  await page.getByRole('button', { name: 'Manage family', exact: true }).click()
+  await page.getByLabel('Upload family photo').setInputFiles({ name: 'replacement.svg', mimeType: 'image/svg+xml', buffer: replacement })
+  await page.getByRole('button', { name: 'Save receiver', exact: true }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  const updatedPhoto = `data:image/svg+xml;base64,${replacement.toString('base64')}`
+  expect(requests.filter(r => r.method === 'PATCH').at(-1)).toMatchObject({ token: 'Bearer test-access-token', body: { name: 'Photo Update Receiver', profilePic: updatedPhoto } })
+  await page.reload()
+  await page.locator('.sidebar [data-page="families"]').click()
+  await page.getByRole('button', { name: 'View card', exact: false }).click()
+  await page.getByRole('button', { name: 'Manage family', exact: true }).click()
+  await expect(page.getByAltText('Current family photo')).toHaveAttribute('src', updatedPhoto)
+})
+
+test('family update can capture and save a camera photo', async ({ page }) => {
+  const requests = await mockApi(page)
+  await login(page, 'agent')
+  await page.getByRole('button', { name: 'Register a family', exact: true }).click()
+  await page.getByLabel('Receiver name').fill('Camera Update Receiver')
+  await page.getByRole('button', { name: 'Register family', exact: true }).click()
+  await page.getByRole('button', { name: 'Manage family', exact: true }).click()
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 320
+      canvas.height = 240
+      canvas.getContext('2d').fillRect(0, 0, 320, 240)
+      window.familyCameraStream = canvas.captureStream(10)
+      return window.familyCameraStream
+    }
+  })
+  await page.getByRole('button', { name: 'Camera', exact: true }).click()
+  await expect.poll(() => page.locator('.photo-camera video').evaluate(video => video.videoWidth)).toBe(320)
+  await page.getByRole('button', { name: 'Take photo', exact: true }).click()
+  await expect(page.getByAltText('Selected family photo')).toBeVisible()
+  expect(await page.evaluate(() => window.familyCameraStream.getVideoTracks()[0].readyState)).toBe('ended')
+  await page.getByRole('button', { name: 'Save receiver', exact: true }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect(requests.filter(r => r.method === 'PATCH').at(-1).body.profilePic).toMatch(/^data:image\/jpeg;base64,/)
+})

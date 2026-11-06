@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-export default function FamilyPhoto({ photo, onChange, disabled }) {
+export default function FamilyPhoto({ photo, existingPhoto, onChange, disabled }) {
   const upload = useRef(null), video = useRef(null), stream = useRef(null), request = useRef(0)
   const [opening, setOpening] = useState(false), [camera, setCamera] = useState(false)
   const [preview, setPreview] = useState(''), [error, setError] = useState('')
@@ -90,6 +90,7 @@ export default function FamilyPhoto({ photo, onChange, disabled }) {
         <button type="button" className="btn secondary" onClick={closeCamera}>Cancel camera</button>
       </div>
     </div>}
+    {!photo && existingPhoto && <div className="photo-selection"><img src={existingPhoto} alt="Current family photo" /><span>Current photo</span></div>}
     {photo && preview && <div className="photo-selection"><img src={preview} alt="Selected family photo" /><span>{photo.name}</span><button type="button" className="text-btn" onClick={() => onChange(null)}>Remove photo</button></div>}
     <p className="small-note">Take a photo or choose an image up to 2 MB.</p>
     {error && <p className="error" role="alert">{error}</p>}

@@ -219,8 +219,8 @@ export function WorkspaceProvider({ children }) {
   async function deleteVolunteer(id) {
     if (await changeStaff(() => apiRef.current.deleteVolunteer(id), refreshVolunteers, 'Volunteer deleted from the server')) closeDialog()
   }
-  async function saveReceiverName(id, name) {
-    if (await changeStaff(() => apiRef.current.updateReceiver(id, { name: name.trim() }), refreshFamilies, 'Receiver updated on the server')) closeDialog()
+  async function saveReceiverName(id, name, photo) {
+    if (await changeStaff(() => apiRef.current.updateReceiver(id, { name: name.trim(), ...(photo !== undefined ? { profilePic: photo } : {}) }), refreshFamilies, 'Receiver updated on the server')) closeDialog()
   }
   async function deleteReceiver(id) {
     if (await changeStaff(() => apiRef.current.deleteReceiver(id), refreshFamilies, 'Receiver deleted from the server')) closeDialog()

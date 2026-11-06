@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useWorkspace } from '../state/WorkspaceContext.jsx'
 import { familyRelations as relations } from '../lib/familyRelations.js'
+import FamilyPhoto from './FamilyPhoto.jsx'
 export default function FamilyManagement({ family }) {
   const { saveReceiverName, deleteReceiver, saveFamilyMember, deleteFamilyMember, staffMutationBusy } = useWorkspace()
   const [name, setName] = useState(family.name)
+  const [photo, setPhoto] = useState(null), [readingPhoto, setReadingPhoto] = useState(false)
   const [memberNames, setMemberNames] = useState(() => Object.fromEntries(family.members.filter(member => member.relation !== 'Self').map(member => [member.id, member.name])))
   const [newName, setNewName] = useState(''), [relation, setRelation] = useState('')
   const [confirming, setConfirming] = useState(null), [error, setError] = useState(''), [needsReview, setNeedsReview] = useState(false)
@@ -16,10 +18,28 @@ export default function FamilyManagement({ family }) {
       setError(uncertain ? `${issue.message} The member may have been saved. Close this form and refresh families before trying again.` : issue.message)
     }
   }
-  const busy = staffMutationBusy || needsReview
+  async function saveReceiver(event) {
+    event.preventDefault()
+    if (!name.trim() || busy) return
+    setReadingPhoto(true)
+    await run(async () => {
+      let image
+      if (photo) image = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = () => reject(Error('The photo could not be read.'))
+        reader.readAsDataURL(photo)
+      })
+      await saveReceiverName(family.id, name, image)
+    })
+    setReadingPhoto(false)
+  }
+  const busy = staffMutationBusy || needsReview || readingPhoto
   return <div className="family-management">
-    <form aria-label="Edit receiver" onSubmit={event => { event.preventDefault(); if (name.trim()) run(() => saveReceiverName(family.id, name)) }}>
-      <label className="field">Receiver name<input value={name} disabled={busy} onChange={event => setName(event.target.value)} required /></label><button className="btn secondary full" disabled={busy || !name.trim()}>Save receiver</button>
+    <form aria-label="Edit receiver" onSubmit={saveReceiver}>
+      <label className="field">Receiver name<input value={name} disabled={busy} onChange={event => setName(event.target.value)} required /></label>
+      <FamilyPhoto photo={photo} existingPhoto={family.photo} onChange={setPhoto} disabled={busy} />
+      <button className="btn secondary full" disabled={busy || !name.trim()}>Save receiver</button>
     </form>
     <h3>Family members</h3>
     {members.map(member => <form key={member.id} aria-label={`Edit ${member.name}`} onSubmit={event => { event.preventDefault(); if (memberNames[member.id]?.trim()) run(() => saveFamilyMember(family.id, { name: memberNames[member.id] }, member.id)) }}>
