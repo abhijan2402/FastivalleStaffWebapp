@@ -601,7 +601,7 @@ test('family camera permission denial allows photo upload', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'Camera', exact: true })).toBeEnabled()
 })
 
-test('family card printing is disabled and QR printing excludes family details', async ({ page }) => {
+test('Print QR code shows the selected QR before printing and excludes family details', async ({ page }) => {
   await mockApi(page)
   await login(page, 'agent')
   await page.getByRole('button', { name: 'Register a family', exact: true }).click()
@@ -631,12 +631,23 @@ test('family card printing is disabled and QR printing excludes family details',
   await expect(page.getByRole('button', { name: 'Print family card', exact: true })).toBeDisabled()
   await page.evaluate(() => { window.print = () => { window.qrPrintCalled = true } })
   await page.getByRole('button', { name: 'Print QR code', exact: true }).click()
+  const preview = page.getByRole('dialog', { name: 'Print QR code', exact: true })
+  await expect(preview).toBeVisible()
+  await expect(preview.getByRole('img', { name: 'Family QR code' })).toBeVisible()
+  await expect(preview).toContainText('QR Print Receiver')
+  expect(await page.locator('#print-qr').innerHTML()).toBe(originalQr)
+  expect(await page.evaluate(() => window.qrPrintCalled)).toBeUndefined()
+  await preview.getByRole('button', { name: 'Print', exact: true }).click()
   expect(await page.evaluate(() => window.qrPrintCalled)).toBe(true)
   await page.emulateMedia({ media: 'print' })
   await expect(page.locator('#print-qr svg')).toBeVisible()
-  await expect(page.locator('#print-card h2')).toBeHidden()
-  await expect(page.locator('#print-card .card-brand')).toBeHidden()
-  await expect(page.locator('#print-card code')).toBeHidden()
+  await expect(preview.getByRole('heading', { name: 'QR Print Receiver', exact: true })).toBeHidden()
+  await expect(preview.getByRole('button', { name: 'Print', exact: true })).toBeHidden()
+  await expect(page.locator('#app')).toBeHidden()
+  await page.emulateMedia({ media: 'screen' })
+  await preview.getByRole('button', { name: 'Back to family', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Family & meal card', exact: true })).toBeVisible()
+  expect(await page.locator('#print-qr').innerHTML()).toBe(originalQr)
 })
 
 test.describe('food event timezone and integer controls', () => {
@@ -925,4 +936,27 @@ test('API photo URLs render in the list and Manage family with the image server 
   }
   expect(imageRequests.length).toBeGreaterThanOrEqual(2)
   await expect(page.getByRole('row', { name: /No Photo Receiver/ }).locator('.family-avatar')).toHaveText('NPR')
+})
+
+
+test('QR print preview fits mobile and uses the selected family code', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await mockApi(page, { receiverRecords: [
+    { id: 'receiver-first', name: 'First Family', isActive: true },
+    { id: 'receiver-selected', name: 'Selected Family', isActive: true },
+  ] })
+  await login(page, 'agent')
+  await page.locator('.mobile-nav [data-page="families"]').click()
+  await page.getByRole('row', { name: /Selected Family/ }).getByRole('button', { name: 'View card', exact: false }).click()
+  const selectedQr = await page.locator('#print-qr').innerHTML()
+  await page.getByRole('button', { name: 'Print QR code', exact: true }).click()
+  const preview = page.getByRole('dialog', { name: 'Print QR code', exact: true })
+  await expect(preview).toContainText('Selected Family')
+  await expect(preview).toContainText('receiver-selected')
+  expect(await page.locator('#print-qr').innerHTML()).toBe(selectedQr)
+  const box = await page.getByRole('img', { name: 'Family QR code' }).boundingBox()
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(390)
+  await page.getByRole('button', { name: 'Close dialog', exact: true }).click()
+  await expect(preview).toHaveCount(0)
 })

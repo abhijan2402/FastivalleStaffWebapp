@@ -12,16 +12,18 @@ import UnitForm from './UnitForm.jsx'
 import LoginForm from './LoginForm.jsx'
 import ProfileForm from './ProfileForm.jsx'
 import FamilyCard from './FamilyCard.jsx'
+import FamilyQr from './FamilyQr.jsx'
 import ProcessFood from './ProcessFood.jsx'
 import { useWorkspace } from '../state/WorkspaceContext.jsx'
 export default function WorkspaceDialog() {
-  const { state, demoMode, role, foodMutationBusy, staffMutationBusy, online, dialog, closeDialog, updateCard, resetDemo } = useWorkspace()
+  const { state, demoMode, role, foodMutationBusy, staffMutationBusy, online, dialog, openDialog, closeDialog, updateCard, resetDemo } = useWorkspace()
   const panel = useRef(null)
   const family = state.families.find(family => family.id === dialog.familyId)
   const unit = state.units.find(unit => unit.id === dialog.unitId)
   const title = {
     'family-form': 'A place at the table.', family: 'Family & meal card', 'unit-form': dialog.unitId ? 'Edit food event' : 'Plan a little good.',
     'volunteer-form': dialog.volunteer ? 'Edit volunteer' : 'Create volunteer', volunteer: 'Volunteer details', 'family-manage': 'Manage family',
+    'qr-print': 'Print QR code',
     account: 'Your field companion', login: 'Good to have you here.',
     install: 'Keep Fastivalle close.', reset: 'Start fresh?',
     serve: 'Process food', 'unit-summary': 'Distribution summary',
@@ -51,6 +53,12 @@ export default function WorkspaceDialog() {
     case 'login': content = <LoginForm />; break
     case 'account': content = <ProfileForm />; break
     case 'family': content = family && <FamilyCard family={family} />; break
+    case 'qr-print': content = family && <div className="qr-print-content">
+      <h3>{family.name}</h3><p className="small-note">{family.id}</p>
+      <FamilyQr value={demoMode ? `${family.id}:${family.version}` : family.id} className="qr-print-preview" />
+      <p className="small-note">Select Print to choose a printer or save the QR code as a PDF.</p>
+      <div className="qr-print-actions"><button className="btn secondary" onClick={() => openDialog('family', { familyId: family.id })}>Back to family</button><button className="btn primary" onClick={() => window.print()}><Icon name="download" />Print</button></div>
+    </div>; break
     case 'card-confirm': content = <><p>{dialog.action === 'deactivate' ? 'Scans of this card will be rejected.' : 'The old QR code will stop working immediately. Print the new card for this family.'}</p><button className={`btn full ${dialog.action === 'deactivate' ? 'danger' : 'primary'}`} onClick={() => updateCard(dialog.familyId, dialog.action)}>Confirm {dialog.action === 'deactivate' ? 'deactivation' : 'replacement'}</button></>; break
     case 'serve': content = family && <ProcessFood family={family} />; break
     case 'result': content = <div className="serve-confirm"><span className={`confirm-icon ${dialog.result.ok ? '' : 'rejected'}`}><Icon name={dialog.result.ok ? 'check' : 'close'} /></span><h3>{dialog.result.message}</h3><p>{dialog.result.detail}</p>{dialog.result.ok && !online && <p className="subtle">Saved offline on this device.</p>}<button className="btn primary full" onClick={closeDialog}>{dialog.result.ok ? 'Scan next family' : 'Try another card'}</button></div>; break

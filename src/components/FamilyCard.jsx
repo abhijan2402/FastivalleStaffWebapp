@@ -1,6 +1,5 @@
 import BrandLogo from './BrandLogo.jsx'
-import { useMemo } from 'react'
-import qrcode from 'qrcode-generator'
+import FamilyQr from './FamilyQr.jsx'
 import Icon from './Icon.jsx'
 import { familyMembers } from '../domain.mjs'
 import Badge from './Badge.jsx'
@@ -10,13 +9,6 @@ export default function FamilyCard({ family }) {
   const { openDialog, updateCard, demoMode, role } = useWorkspace()
   const hasQr = !demoMode || !!family.card
   const qrValue = demoMode ? `${family.id}:${family.version}` : family.id
-  const qr = useMemo(() => {
-    if (!hasQr) return ''
-    const code = qrcode(0, 'M')
-    code.addData(qrValue)
-    code.make()
-    return code.createSvgTag({ cellSize: 5, margin: 3, scalable: true })
-  }, [hasQr, qrValue])
 
   return <div className="family-detail">
     <div id="print-card" className="family-card">
@@ -25,7 +17,7 @@ export default function FamilyCard({ family }) {
       <h2>{family.name}</h2>
       <p>{family.id} · {familyMembers(family).length} family members</p>
       {hasQr ? <>
-        <div id="print-qr" className={`qr ${demoMode && family.card === 'inactive' ? 'inactive-qr' : ''}`} dangerouslySetInnerHTML={{ __html: qr }} />
+        <FamilyQr value={qrValue} className={demoMode && family.card === 'inactive' ? 'inactive-qr' : ''} />
         <code>{qrValue}</code>
       </> : <div className="open-card">Complete this family to create a QR card.</div>}
       <p>{demoMode && family.card === 'inactive' ? 'DEACTIVATED — DO NOT USE' : hasQr ? 'Please bring this QR code to every distribution.' : 'Family profile is open'}</p>
@@ -40,7 +32,7 @@ export default function FamilyCard({ family }) {
         {!demoMode && role === 'agent' && <button className="btn secondary" onClick={() => openDialog('family-manage', { familyId: family.id })}>Manage family</button>}
         {hasQr && <>
           <button className="btn secondary" disabled><Icon name="download" />Print family card</button>
-          <button className="btn secondary" onClick={() => window.print()}><Icon name="download" />Print QR code</button>
+          <button className="btn secondary" onClick={() => openDialog('qr-print', { familyId: family.id })}><Icon name="download" />Print QR code</button>
         </>}
         {demoMode && (family.card ? <>
           <button className="btn secondary" onClick={() => openDialog('card-confirm', { familyId: family.id, action: 'regenerate' })}>Regenerate QR card</button>

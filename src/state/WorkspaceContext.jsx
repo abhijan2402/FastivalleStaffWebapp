@@ -6,7 +6,7 @@ import { createApi, mapFoodEvent, mapReceiver, mapVolunteer } from '../api/clien
 const WorkspaceContext = createContext(null)
 const agentNavs = [['overview', 'home', 'Overview'], ['scan', 'scan', 'Scan & serve'], ['families', 'users', 'Families'], ['units', 'box', 'Food units']]
 const volunteerNavs = [['scan', 'scan', 'Scan & serve']]
-const agentDialogs = ['family-form', 'family', 'unit-form', 'card-confirm', 'unit-summary', 'volunteer', 'volunteer-form', 'family-manage']
+const agentDialogs = ['family-form', 'family', 'unit-form', 'card-confirm', 'unit-summary', 'volunteer', 'volunteer-form', 'family-manage', 'qr-print']
 function loadState() {
   try { return JSON.parse(localStorage.getItem('fv-data')) || seed() } catch { return seed() }
 }
