@@ -10,9 +10,11 @@ export default function FamilyForm() {
   const [name, setName] = useState(''), [mobile, setMobile] = useState(''), [email, setEmail] = useState('')
   const [members, setMembers] = useState([]), [full, setFull] = useState(true)
   const [photo, setPhoto] = useState(null), [error, setError] = useState(''), [saving, setSaving] = useState(false)
+  const [processingPhoto, setProcessingPhoto] = useState(false)
   function updateMember(index, field, value) { setMembers(current => current.map((member, position) => position === index ? { ...member, [field]: value } : member)) }
   async function submit(event) {
     event.preventDefault()
+    if (processingPhoto || saving) return
     setError('')
     if (photo && photo.size > 2 * 1024 * 1024) { setError('Choose a photo smaller than 2 MB.'); return }
     setSaving(true)
@@ -26,7 +28,7 @@ export default function FamilyForm() {
     <label className="field">Receiver name *<input disabled={!!progress.current.receiver} value={name} onChange={event => setName(event.target.value)} required placeholder="Full name" /></label>
     <label className="field">Mobile number (optional)<input disabled={!!progress.current.receiver} type="tel" value={mobile} onChange={event => setMobile(event.target.value)} autoComplete="tel" /></label>
     <label className="field">Email (optional)<input disabled={!!progress.current.receiver} type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" /></label>
-    <FamilyPhoto photo={photo} onChange={setPhoto} disabled={saving || !!progress.current.receiver} />
+    <FamilyPhoto photo={photo} onChange={setPhoto} onProcessingChange={setProcessingPhoto} disabled={saving || !!progress.current.receiver} />
     <h3>Family members</h3><p className="small-note">The receiver is included as Self. Add other family members below.</p>
     <div id="member-fields">{members.map((member, index) => <div key={index} className="family-member-fields">
       <label className="field">Member name *<input disabled={index < (progress.current.members?.length || 0)} value={member.name} onChange={event => updateMember(index, 'name', event.target.value)} required placeholder="Member’s full name" /></label>
@@ -35,6 +37,6 @@ export default function FamilyForm() {
     </div>)}</div>
     <button className="text-btn add-member" type="button" onClick={() => setMembers(current => [...current, { name: '', relation: '' }])}><Icon name="plus" />Add another member</button>
     {demoMode && <label className="check-field"><input checked={full} onChange={event => setFull(event.target.checked)} type="checkbox" /><span>Family is complete — generate an active QR card</span></label>}
-    </fieldset>{!demoMode && <p className="small-note">Receiver and members are saved to the server. QR card actions remain a local sample.</p>}<p className="error" role="alert">{error}</p><button className="btn primary full" disabled={saving || progress.current.needsReview}>{saving ? 'Saving…' : 'Register family'}</button>
+    </fieldset>{!demoMode && <p className="small-note">Receiver and members are saved to the server. QR card actions remain a local sample.</p>}<p className="error" role="alert">{error}</p><button className="btn primary full" disabled={saving || processingPhoto || progress.current.needsReview}>{saving ? 'Saving…' : 'Register family'}</button>
   </form>
 }

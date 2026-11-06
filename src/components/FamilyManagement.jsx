@@ -6,6 +6,7 @@ export default function FamilyManagement({ family }) {
   const { saveReceiverName, deleteReceiver, saveFamilyMember, deleteFamilyMember, staffMutationBusy } = useWorkspace()
   const [name, setName] = useState(family.name)
   const [photo, setPhoto] = useState(null), [readingPhoto, setReadingPhoto] = useState(false)
+  const [processingPhoto, setProcessingPhoto] = useState(false)
   const [memberNames, setMemberNames] = useState(() => Object.fromEntries(family.members.filter(member => member.relation !== 'Self').map(member => [member.id, member.name])))
   const [newName, setNewName] = useState(''), [relation, setRelation] = useState('')
   const [confirming, setConfirming] = useState(null), [error, setError] = useState(''), [needsReview, setNeedsReview] = useState(false)
@@ -34,11 +35,11 @@ export default function FamilyManagement({ family }) {
     })
     setReadingPhoto(false)
   }
-  const busy = staffMutationBusy || needsReview || readingPhoto
+  const busy = staffMutationBusy || needsReview || readingPhoto || processingPhoto
   return <div className="family-management">
     <form aria-label="Edit receiver" onSubmit={saveReceiver}>
       <label className="field">Receiver name<input value={name} disabled={busy} onChange={event => setName(event.target.value)} required /></label>
-      <FamilyPhoto photo={photo} existingPhoto={family.photo} onChange={setPhoto} disabled={busy} />
+      <FamilyPhoto photo={photo} existingPhoto={family.photo} onChange={setPhoto} onProcessingChange={setProcessingPhoto} disabled={busy} />
       <button className="btn secondary full" disabled={busy || !name.trim()}>Save receiver</button>
     </form>
     <h3>Family members</h3>

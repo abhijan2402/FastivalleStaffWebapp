@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { compressPhoto, compressPhotoCanvas } from '../lib/compressPhoto.js'
 
-export default function FamilyPhoto({ photo, existingPhoto, onChange, disabled }) {
+export default function FamilyPhoto({ photo, existingPhoto, onChange, onProcessingChange, disabled }) {
   const upload = useRef(null), video = useRef(null), stream = useRef(null), request = useRef(0)
   const [opening, setOpening] = useState(false), [camera, setCamera] = useState(false)
   const [preview, setPreview] = useState(''), [error, setError] = useState('')
+  const [processing, setProcessing] = useState(false)
+  const selection = useRef(0)
 
   function stopCamera() {
     request.current++
@@ -15,7 +18,7 @@ export default function FamilyPhoto({ photo, existingPhoto, onChange, disabled }
     setCamera(false)
     setOpening(false)
   }
-  useEffect(() => () => stopCamera(), [])
+  useEffect(() => () => { stopCamera(); selection.current++ }, [])
   useEffect(() => {
     if (!photo) { setPreview(''); return }
     const url = URL.createObjectURL(photo)
@@ -32,13 +35,26 @@ export default function FamilyPhoto({ photo, existingPhoto, onChange, disabled }
     }
   }, [camera])
 
+  async function preparePhoto(operation) {
+    const current = ++selection.current
+    setError('')
+    setProcessing(true)
+    onProcessingChange?.(true)
+    closeCamera()
+    try {
+      const compressed = await operation()
+      if (current === selection.current) onChange(compressed)
+    } catch (issue) {
+      if (current === selection.current) setError(issue.message)
+    } finally {
+      if (current === selection.current) { setProcessing(false); onProcessingChange?.(false) }
+    }
+  }
   function selectPhoto(file) {
     if (!file) return
     if (!file.type.startsWith('image/')) { setError('Choose an image file.'); return }
-    if (file.size > 2 * 1024 * 1024) { setError('Choose a photo smaller than 2 MB.'); return }
-    setError('')
-    onChange(file)
-    closeCamera()
+    if (file.size > 20 * 1024 * 1024) { setError('Choose a photo smaller than 20 MB.'); return }
+    preparePhoto(() => compressPhoto(file))
   }
   async function openCamera() {
     setError('')
@@ -64,19 +80,14 @@ export default function FamilyPhoto({ photo, existingPhoto, onChange, disabled }
     const source = video.current
     if (!source?.videoWidth) { setError('Camera is getting ready. Try taking the photo again.'); return }
     const canvas = document.createElement('canvas')
-    const scale = Math.min(1, 1600 / Math.max(source.videoWidth, source.videoHeight))
+    const scale = Math.min(1, 1280 / Math.max(source.videoWidth, source.videoHeight))
     canvas.width = Math.round(source.videoWidth * scale)
     canvas.height = Math.round(source.videoHeight * scale)
     canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height)
-    const current = request.current
-    canvas.toBlob(blob => {
-      if (current !== request.current) return
-      if (!blob) { setError('The photo could not be captured. Please try again.'); return }
-      selectPhoto(new File([blob], 'family-photo.jpg', { type: 'image/jpeg' }))
-    }, 'image/jpeg', 0.85)
+    preparePhoto(() => compressPhotoCanvas(canvas))
   }
 
-  return <fieldset className="family-photo" disabled={disabled}>
+  return <fieldset className="family-photo" disabled={disabled || processing}>
     <legend>Photo (optional)</legend>
     <input ref={upload} type="file" accept="image/*" hidden aria-label="Upload family photo" onChange={event => { selectPhoto(event.target.files?.[0]); event.target.value = '' }} />
     <div className="photo-actions">
@@ -92,7 +103,8 @@ export default function FamilyPhoto({ photo, existingPhoto, onChange, disabled }
     </div>}
     {!photo && existingPhoto && <div className="photo-selection"><img src={existingPhoto} alt="Current family photo" /><span>Current photo</span></div>}
     {photo && preview && <div className="photo-selection"><img src={preview} alt="Selected family photo" /><span>{photo.name}</span><button type="button" className="text-btn" onClick={() => onChange(null)}>Remove photo</button></div>}
-    <p className="small-note">Take a photo or choose an image up to 2 MB.</p>
+    {processing && <p role="status">Compressing photo…</p>}
+    <p className="small-note">Photos are automatically compressed before saving. Upload images up to 20 MB.</p>
     {error && <p className="error" role="alert">{error}</p>}
   </fieldset>
 }

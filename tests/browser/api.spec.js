@@ -526,7 +526,7 @@ test('family registration uploads a photo and sends it with the receiver', async
   await page.getByLabel('Receiver name').fill('Photo Receiver')
   await page.getByRole('button', { name: 'Register family', exact: true }).click()
   await expect(page.getByRole('dialog')).toContainText('receiver-1')
-  expect(requests.find(r => r.path === '/api/admin/receivers' && r.method === 'POST').body.profilePic).toBe(`data:image/png;base64,${buffer.toString('base64')}`)
+  expect(requests.find(r => r.path === '/api/admin/receivers' && r.method === 'POST').body.profilePic).toMatch(/^data:image\/jpeg;base64,/)
 })
 
 test('family camera captures a photo, stops its stream and saves the image', async ({ page }) => {
@@ -692,15 +692,16 @@ test('family update replaces an existing photo by upload and preserves it on nam
   await page.getByRole('button', { name: 'Register a family', exact: true }).click()
   await page.getByLabel('Receiver name').fill('Photo Update Receiver')
   const buffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZkAAAAASUVORK5CYII=', 'base64')
-  const original = `data:image/png;base64,${buffer.toString('base64')}`
   await page.getByLabel('Upload family photo').setInputFiles({ name: 'original.png', mimeType: 'image/png', buffer })
+  await expect(page.getByAltText('Selected family photo')).toBeVisible()
   await page.getByRole('button', { name: 'Register family', exact: true }).click()
   await page.getByRole('button', { name: 'Manage family', exact: true }).click()
+  const original = requests.find(r => r.path === '/api/admin/receivers' && r.method === 'POST').body.profilePic
   await expect(page.getByAltText('Current family photo')).toHaveAttribute('src', original)
   await page.getByLabel('Upload family photo').setInputFiles({ name: 'invalid.txt', mimeType: 'text/plain', buffer: Buffer.from('invalid') })
   await expect(page.locator('.family-photo').getByRole('alert')).toContainText('Choose an image file')
-  await page.getByLabel('Upload family photo').setInputFiles({ name: 'large.png', mimeType: 'image/png', buffer: Buffer.alloc(2 * 1024 * 1024 + 1) })
-  await expect(page.locator('.family-photo').getByRole('alert')).toContainText('smaller than 2 MB')
+  await page.getByLabel('Upload family photo').setInputFiles({ name: 'large.png', mimeType: 'image/png', buffer: Buffer.alloc(20 * 1024 * 1024 + 1) })
+  await expect(page.locator('.family-photo').getByRole('alert')).toContainText('smaller than 20 MB')
   const replacement = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="green"/></svg>`)
   const chooserPromise = page.waitForEvent('filechooser')
   await page.getByRole('button', { name: 'Upload photo', exact: true }).click()
@@ -717,7 +718,8 @@ test('family update replaces an existing photo by upload and preserves it on nam
   await page.getByLabel('Upload family photo').setInputFiles({ name: 'replacement.svg', mimeType: 'image/svg+xml', buffer: replacement })
   await page.getByRole('button', { name: 'Save receiver', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  const updatedPhoto = `data:image/svg+xml;base64,${replacement.toString('base64')}`
+  const updatedPhoto = requests.filter(r => r.method === 'PATCH').at(-1).body.profilePic
+  expect(updatedPhoto).toMatch(/^data:image\/jpeg;base64,/)
   expect(requests.filter(r => r.method === 'PATCH').at(-1)).toMatchObject({ token: 'Bearer test-access-token', body: { name: 'Photo Update Receiver', profilePic: updatedPhoto } })
   await page.reload()
   await page.locator('.sidebar [data-page="families"]').click()
@@ -751,4 +753,60 @@ test('family update can capture and save a camera photo', async ({ page }) => {
   await page.getByRole('button', { name: 'Save receiver', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(requests.filter(r => r.method === 'PATCH').at(-1).body.profilePic).toMatch(/^data:image\/jpeg;base64,/)
+})
+
+
+test('large photo uploads are resized and compressed before registration', async ({ page }) => {
+  const requests = await mockApi(page)
+  await login(page, 'agent')
+  await page.getByRole('button', { name: 'Register a family', exact: true }).click()
+  await page.getByLabel('Receiver name').fill('Compressed Photo Receiver')
+  const original = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 1800
+    canvas.height = 1400
+    const context = canvas.getContext('2d')
+    const pixels = context.createImageData(canvas.width, canvas.height)
+    let seed = 12345
+    for (let i = 0; i < pixels.data.length; i += 4) {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0
+      pixels.data[i] = seed & 255
+      pixels.data[i + 1] = (seed >>> 8) & 255
+      pixels.data[i + 2] = (seed >>> 16) & 255
+      pixels.data[i + 3] = 255
+    }
+    context.putImageData(pixels, 0, 0)
+    return canvas.toDataURL('image/png').split(',')[1]
+  })
+  const buffer = Buffer.from(original, 'base64')
+  expect(buffer.length).toBeGreaterThan(2 * 1024 * 1024)
+  await page.getByLabel('Upload family photo').setInputFiles({ name: 'large-photo.png', mimeType: 'image/png', buffer })
+  await expect(page.getByAltText('Selected family photo')).toBeVisible()
+  await page.getByRole('button', { name: 'Register family', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Manage family', exact: true })).toBeVisible()
+  const data = requests.find(r => r.path === '/api/admin/receivers' && r.method === 'POST').body.profilePic
+  expect(data).toMatch(/^data:image\/jpeg;base64,/)
+  const compressed = Buffer.from(data.split(',')[1], 'base64')
+  expect(compressed.length).toBeLessThanOrEqual(250 * 1024)
+  expect(compressed.length).toBeLessThan(buffer.length)
+  const dimensions = await page.evaluate(async data => {
+    const image = new Image()
+    image.src = data
+    await image.decode()
+    return { width: image.naturalWidth, height: image.naturalHeight }
+  }, data)
+  expect(dimensions.width).toBeLessThanOrEqual(1280)
+  expect(dimensions.height).toBeLessThanOrEqual(1280)
+  expect(dimensions.width / dimensions.height).toBeCloseTo(1800 / 1400, 2)
+})
+
+test('unreadable photo uploads show an error and release save controls', async ({ page }) => {
+  await mockApi(page)
+  await login(page, 'agent')
+  await page.getByRole('button', { name: 'Register a family', exact: true }).click()
+  await page.getByLabel('Upload family photo').setInputFiles({ name: 'broken.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('broken image') })
+  await expect(page.locator('.family-photo').getByRole('alert')).toContainText('This image could not be opened')
+  await expect(page.getByAltText('Selected family photo')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Register family', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Upload photo', exact: true })).toBeEnabled()
 })
