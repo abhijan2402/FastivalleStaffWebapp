@@ -18,7 +18,7 @@ export default function OverviewView() {
     <PageHeading title="Dashboard" subtitle={`Welcome, ${profile.name.split(' ')[0]}.`} />
     <section className="stats-grid">
       <StatCard icon="box" label="Meals recorded today" value={meals} detail={`${allTodayUnits.length} food events today`} kind="green" />
-      <StatCard icon="users" label="Families registered" value={state.families.length} detail={`${state.families.filter(family => family.card === 'active').length} active cards`} />
+      <StatCard icon="users" label="Families registered" value={state.families.length} detail={demoMode ? `${state.families.filter(family => family.card === 'active').length} active cards` : `${state.families.filter(family => family.isActive === true).length} active families`} />
       <StatCard icon="leaf" label="Packs remaining today" value={remaining} detail="Available across today’s events" />
       <StatCard icon="heart" label="All-time meals" value={state.total.toLocaleString()} kind="orange" />
     </section>

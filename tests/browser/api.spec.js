@@ -4,9 +4,9 @@ test.use({ timezoneId: 'Asia/Kolkata' })
 const demoMode = process.env.VITE_DEMO_MODE === 'true'
 test.skip(demoMode, 'API integration tests run in the default live build.')
 
-async function mockApi(page, { expired = false, eventsFail = false, memberFailOnce = false, receiversForbidden = false, receiverUncertain = false, foodForbidden = false, foodWriteFail = false, foodCount = 1, volunteerCount = 0, volunteersForbidden = false, volunteerWriteFail = false, volunteerUncertain = false } = {}) {
+async function mockApi(page, { expired = false, eventsFail = false, memberFailOnce = false, receiversForbidden = false, receiverUncertain = false, foodForbidden = false, foodWriteFail = false, foodCount = 1, volunteerCount = 0, volunteersForbidden = false, volunteerWriteFail = false, volunteerUncertain = false, receiverRecords = [] } = {}) {
   const requests = []
-  const receivers = []
+  const receivers = [...receiverRecords]
   const members = []
   const volunteers = Array.from({ length: volunteerCount }, (_, index) => ({ id: `volunteer-${index + 1}`, name: `Volunteer ${index + 1}`, email: `volunteer${index + 1}@example.com`, phone: '+919876543210', isActive: true }))
   let memberAttempts = 0
@@ -62,7 +62,7 @@ async function mockApi(page, { expired = false, eventsFail = false, memberFailOn
     if (path === '/api/admin/receivers') {
       if (request.method() === 'POST') {
         if (receiverUncertain) return route.fulfill({ status: 500, json: { message: 'Connection to database lost' } })
-        const receiver = { id: `receiver-${receivers.length + 1}`, ...body }
+        const receiver = { id: `receiver-${receivers.length + 1}`, isActive: true, ...body }
         receivers.push(receiver)
         return route.fulfill({ status: 201, json: { data: { receiver } } })
       }
@@ -843,4 +843,40 @@ test('unreadable photo uploads show an error and release save controls', async (
   await expect(page.getByAltText('Selected family photo')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Register family', exact: true })).toBeEnabled()
   await expect(page.getByRole('button', { name: 'Upload photo', exact: true })).toBeEnabled()
+})
+
+
+test('family list badges and filters use the receiver isActive flag', async ({ page }) => {
+  const records = [
+    { id: 'receiver-active', name: 'Sameer Roy', email: 'sameer@sonetcraft.com', phone: '14158257591', profilePic: null, isActive: true },
+    { id: 'receiver-inactive', name: 'Inactive Receiver', isActive: false },
+    { id: 'receiver-unknown', name: 'Unknown Receiver' },
+  ]
+  await mockApi(page, { receiverRecords: records })
+  await login(page, 'agent')
+  await expect(page.getByText('1 active families', { exact: true })).toBeVisible()
+  await page.locator('.sidebar [data-page="families"]').click()
+  await expect(page.getByRole('columnheader', { name: 'Status', exact: true })).toBeVisible()
+  await expect(page.getByRole('row', { name: /Sameer Roy/ }).getByText('Active', { exact: true })).toBeVisible()
+  await expect(page.getByRole('row', { name: /Inactive Receiver/ }).getByText('Inactive', { exact: true })).toBeVisible()
+  await expect(page.getByRole('row', { name: /Unknown Receiver/ }).getByText('Unknown', { exact: true })).toBeVisible()
+  const filter = page.getByLabel('Filter families')
+  await expect(filter.locator('option')).toHaveText(['All families', 'Active', 'Inactive'])
+  await expect(page.getByText('Open profile', { exact: true })).toHaveCount(0)
+  await filter.selectOption('Active')
+  await expect(page.locator('tbody tr')).toHaveCount(1)
+  await expect(page.locator('tbody')).toContainText('Sameer Roy')
+  const search = page.getByPlaceholder('Search by name or family ID')
+  await search.fill('Inactive Receiver')
+  await expect(page.locator('tbody tr')).toHaveCount(0)
+  await filter.selectOption('Inactive')
+  await expect(page.locator('tbody tr')).toHaveCount(1)
+  await expect(page.locator('tbody')).toContainText('Inactive Receiver')
+  await search.fill('')
+  records[0].isActive = false
+  await page.getByRole('button', { name: 'Refresh families', exact: true }).click()
+  await expect(page.locator('tbody tr')).toHaveCount(2)
+  await expect(page.getByRole('row', { name: /Sameer Roy/ }).getByText('Inactive', { exact: true })).toBeVisible()
+  await filter.selectOption('All families')
+  await expect(page.locator('tbody tr')).toHaveCount(3)
 })

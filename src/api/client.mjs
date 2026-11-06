@@ -104,6 +104,7 @@ export function mapReceiver(receiver) {
   if (!receiver?.id || !receiver?.name) throw new ApiError('The receiver response is missing an ID or name.')
   return {
     id: receiver.id, name: receiver.name, mobile: receiver.phone || '', email: receiver.email || '', photo: receiver.profilePic || null,
+    isActive: receiver.isActive,
     members: [{ id: receiver.id, name: receiver.name, relation: 'Self' }, ...(receiver.familyMembers || []).filter(member => !member.isSelf).map(member => ({ id: member.id, name: member.name, relation: member.relationship || '' }))],
     // Profile completeness is separate from the stable receiver-ID QR shown on live family cards.
     status: 'open', card: null, version: 0,
