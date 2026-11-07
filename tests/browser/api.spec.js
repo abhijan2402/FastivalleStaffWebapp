@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import jsQR from 'jsqr'
+import { readFile } from 'node:fs/promises'
 test.use({ timezoneId: 'Asia/Kolkata' })
 const demoMode = process.env.VITE_DEMO_MODE === 'true'
 test.skip(demoMode, 'API integration tests run in the default live build.')
@@ -140,7 +141,7 @@ test('staff authentication, live volunteer events, session restore and logout', 
   await page.getByRole('button', { name: 'Your profile' }).click()
   await expect(page.getByRole('dialog')).toContainText('staff@example.com')
   await page.getByRole('button', { name: 'Sign out', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Fastivalle staff panel' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Staff Panel', exact: true })).toBeVisible()
   expect(await page.evaluate(() => sessionStorage.getItem('fv-api-session'))).toBeNull()
   expect(requests.some(r => r.path.endsWith('/logout') && r.method === 'POST')).toBeTruthy()
 })
@@ -157,7 +158,7 @@ test('expired session returns to login', async ({ page }) => {
   await page.addInitScript(() => sessionStorage.setItem('fv-api-session', JSON.stringify({ token: 'expired', role: 'volunteer' })))
   await page.goto('/')
   await expect(page.getByRole('alert')).toContainText(/session expired/i)
-  await expect(page.getByRole('heading', { name: 'Fastivalle staff panel' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Staff Panel', exact: true })).toBeVisible()
 })
 test('event errors have a retry and never fall back to sample events', async ({ page }) => {
   await mockApi(page, { eventsFail: true })
@@ -601,11 +602,12 @@ test('family camera permission denial allows photo upload', async ({ page }) => 
   await expect(page.getByRole('button', { name: 'Camera', exact: true })).toBeEnabled()
 })
 
-test('Print QR code shows the selected QR before printing and excludes family details', async ({ page }) => {
+test('Print QR code includes receiver name, phone and ID on the printed card', async ({ page }) => {
   await mockApi(page)
   await login(page, 'agent')
   await page.getByRole('button', { name: 'Register a family', exact: true }).click()
   await page.getByLabel('Receiver name').fill('QR Print Receiver')
+  await page.getByLabel('Mobile number').fill('9876543210')
   await page.getByRole('button', { name: 'Register family', exact: true }).click()
   await expect(page.locator('#print-qr svg')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Mark family complete', exact: true })).toHaveCount(0)
@@ -641,7 +643,10 @@ test('Print QR code shows the selected QR before printing and excludes family de
   expect(await page.evaluate(() => window.qrPrintCalled)).toBe(true)
   await page.emulateMedia({ media: 'print' })
   await expect(page.locator('#print-qr svg')).toBeVisible()
-  await expect(preview.getByRole('heading', { name: 'QR Print Receiver', exact: true })).toBeHidden()
+  await expect(page.locator('#print-qr-card h3')).toHaveText('QR Print Receiver')
+  await expect(page.locator('#print-qr-card h3')).toBeVisible()
+  await expect(page.locator('#print-qr-card').getByText('Phone: 9876543210', { exact: true })).toBeVisible()
+  await expect(page.locator('#print-qr-card').getByText('Family ID: receiver-1', { exact: true })).toBeVisible()
   await expect(preview.getByRole('button', { name: 'Print', exact: true })).toBeHidden()
   await expect(page.locator('#app')).toBeHidden()
   await page.emulateMedia({ media: 'screen' })
@@ -959,4 +964,73 @@ test('QR print preview fits mobile and uses the selected family code', async ({ 
   expect(box.x + box.width).toBeLessThanOrEqual(390)
   await page.getByRole('button', { name: 'Close dialog', exact: true }).click()
   await expect(preview).toHaveCount(0)
+})
+
+
+test('downloads all 61 labeled QR cards across API pages despite list filters', async ({ page }) => {
+  const requests = await mockApi(page)
+  const receivers = Array.from({ length: 61 }, (_, index) => ({ id: `bulk-${index + 1}`, name: index === 0 ? 'নাম <Test> & Family' : `Family ${index + 1}`, phone: `017${String(index).padStart(8, '0')}`, isActive: true }))
+  const offsets = []
+  await page.route('https://api.fastivalle.org/api/admin/receivers?**', route => {
+    const offset = Number(new URL(route.request().url()).searchParams.get('offset'))
+    offsets.push(offset)
+    return route.fulfill({ json: { data: { receivers: receivers.slice(offset, offset + 20), total: receivers.length } } })
+  })
+  await login(page, 'agent')
+  await page.locator('.sidebar [data-page="families"]').click()
+  const downloadButton = page.getByRole('button', { name: 'Download all QR codes (61)', exact: true })
+  await expect(downloadButton).toBeEnabled()
+  expect(offsets).toEqual([0, 20, 40, 60])
+  await page.getByPlaceholder('Search by name or family ID').fill('bulk-61')
+  await expect(page.locator('tbody tr')).toHaveCount(1)
+  const pendingDownload = page.waitForEvent('download')
+  await downloadButton.click()
+  const download = await pendingDownload
+  expect(download.suggestedFilename()).toBe('fastivalle-all-qr-codes.zip')
+  const bytes = await readFile(await download.path())
+  const files = []
+  // Read standard stored ZIP entries, independently of the app's archive builder.
+  let offset = 0
+  while (bytes.readUInt32LE(offset) === 0x04034b50) {
+    const size = bytes.readUInt32LE(offset + 18)
+    const nameLength = bytes.readUInt16LE(offset + 26), extraLength = bytes.readUInt16LE(offset + 28)
+    const start = offset + 30 + nameLength + extraLength
+    files.push({ name: bytes.subarray(offset + 30, offset + 30 + nameLength).toString(), content: bytes.subarray(start, start + size).toString() })
+    offset = start + size
+  }
+  expect(files.filter(file => file.name.endsWith('.svg'))).toHaveLength(61)
+  expect(new Set(files.map(file => file.name)).size).toBe(62)
+  expect(files[0].content).toContain('&lt;Test&gt; &amp; Family')
+  expect(files[0].content).toContain('Phone: 01700000000')
+  expect(files[60].content).toContain('Family ID: bulk-61')
+  expect(requests.filter(request => request.method !== 'GET' && !request.path.endsWith('/login'))).toHaveLength(0)
+  await page.setContent(files.find(file => file.name === 'print-all.html').content)
+  await expect(page.locator('article')).toHaveCount(61)
+  await expect(page.locator('article').first()).toContainText('নাম <Test> & Family')
+  await page.emulateMedia({ media: 'print' })
+  await expect(page.locator('header')).toBeHidden()
+  for (const index of [0, 60]) {
+    const pixels = await page.locator('article > svg').nth(index).evaluate(async svg => {
+      const image = new Image()
+      image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg))
+      await image.decode()
+      const canvas = document.createElement('canvas'); canvas.width = 360; canvas.height = 450
+      const context = canvas.getContext('2d')
+      context.fillStyle = 'white'; context.fillRect(0, 0, 360, 450)
+      context.drawImage(image, 0, 0)
+      return Array.from(context.getImageData(0, 0, 360, 450).data)
+    })
+    expect(jsQR(new Uint8ClampedArray(pixels), 360, 450)?.data).toBe(`bulk-${index + 1}`)
+  }
+})
+
+test('bulk QR download is unavailable when no families load or refresh fails', async ({ page }) => {
+  await mockApi(page)
+  await login(page, 'agent')
+  await page.locator('.sidebar [data-page="families"]').click()
+  await expect(page.getByRole('button', { name: /Download all QR codes/ })).toBeDisabled()
+  await page.route('https://api.fastivalle.org/api/admin/receivers?**', route => route.fulfill({ status: 503, json: { message: 'Families unavailable' } }))
+  await page.getByRole('button', { name: 'Refresh families', exact: true }).click()
+  await expect(page.getByRole('alert')).toContainText('Families unavailable')
+  await expect(page.getByRole('button', { name: /Download all QR codes/ })).toBeDisabled()
 })

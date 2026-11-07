@@ -54,8 +54,14 @@ export default function WorkspaceDialog() {
     case 'account': content = <ProfileForm />; break
     case 'family': content = family && <FamilyCard family={family} />; break
     case 'qr-print': content = family && <div className="qr-print-content">
-      <h3>{family.name}</h3><p className="small-note">{family.id}</p>
-      <FamilyQr value={demoMode ? `${family.id}:${family.version}` : family.id} className="qr-print-preview" />
+      <div id="print-qr-card">
+        <p className="qr-card-brand">Fastivalle · Family QR</p>
+        <FamilyQr value={demoMode ? `${family.id}:${family.version}` : family.id} className="qr-print-preview" />
+        <h3>{family.name}</h3>
+        <p>Phone: {family.mobile || 'Not provided'}</p>
+        <p>Family ID: {family.id}</p>
+        {demoMode && family.card === 'inactive' && <p>DEACTIVATED — DO NOT USE</p>}
+      </div>
       <p className="small-note">Select Print to choose a printer or save the QR code as a PDF.</p>
       <div className="qr-print-actions"><button className="btn secondary" onClick={() => openDialog('family', { familyId: family.id })}>Back to family</button><button className="btn primary" onClick={() => window.print()}><Icon name="download" />Print</button></div>
     </div>; break

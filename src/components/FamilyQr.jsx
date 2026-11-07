@@ -1,12 +1,7 @@
 import { useMemo } from 'react'
-import qrcode from 'qrcode-generator'
+import { qrSvg } from '../lib/qrExport.mjs'
 
 export default function FamilyQr({ value, className = '' }) {
-  const svg = useMemo(() => {
-    const code = qrcode(0, 'M')
-    code.addData(value)
-    code.make()
-    return code.createSvgTag({ cellSize: 5, margin: 3, scalable: true })
-  }, [value])
+  const svg = useMemo(() => qrSvg(value), [value])
   return <div id="print-qr" className={`qr ${className}`} role="img" aria-label="Family QR code" dangerouslySetInnerHTML={{ __html: svg }} />
 }
