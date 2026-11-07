@@ -105,14 +105,14 @@ test('live QR parsing extracts receiver IDs without trusting local demo cards', 
   assert.throws(() => receiverIdFromQr('{broken'), /valid receiver ID/)
 })
 test('eligibility maps self and stable member IDs and respects server restrictions', () => {
-  const family = mapEligibility({ receiver: { id: 'receiver-1', name: 'Receiver' }, self: { id: 'receiver-1', name: 'Receiver', eligible: false }, members: [{ id: 'member-1', name: 'Child', eligible: true }, { personId: 'member-2', name: 'Sibling', alreadyAssigned: true }] }, 'receiver-1')
+  const family = mapEligibility({ foodCardId: 'card-1', receiver: { id: 'receiver-1', name: 'Receiver' }, self: { id: 'receiver-1', name: 'Receiver', eligible: false }, members: [{ id: 'member-1', name: 'Child', eligible: true }, { personId: 'member-2', name: 'Sibling', alreadyAssigned: true }] }, 'receiver-1')
   assert.deepEqual(family.members.map(member => [member.id, member.eligible]), [['SELF', false], ['member-1', true], ['member-2', false]])
   assert.throws(() => mapEligibility({ members: [{ name: 'No ID' }] }, 'receiver-1'), /person IDs/)
   assert.throws(() => mapEligibility({ members: [{ id: 'member-1', eligible: 'false' }] }, 'receiver-1'), /invalid eligibility flags/)
   assert.throws(() => mapEligibility({ members: [{ id: 'member-1' }, { id: 'member-1' }] }, 'receiver-1'), /duplicate/)
   assert.throws(() => mapEligibility({ receiver: { id: 'receiver-2' }, members: [] }, 'receiver-1'), /another receiver/)
   assert.throws(() => mapEligibility({}, 'receiver-1'), /unsupported format/)
-  assert.equal(mapEligibility({ eligibleMembers: [] }, 'receiver-1').members.length, 0)
+  assert.equal(mapEligibility({ foodCardId: 'card-1', eligibleMembers: [] }, 'receiver-1').members.length, 0)
 })
 
 const { serializeFoodItems } = await import('../src/lib/foodItems.mjs')
@@ -149,4 +149,13 @@ test('food list accepts the supplied legacy null item details without weakening 
   assert.throws(() => serializeFoodItems([legacy]), /every food item/)
   assert.throws(() => mapFoodEvent({ ...response.data[0], totalPacks: -1 }), /invalid pack counts/)
   assert.throws(() => mapFoodEvent({ ...response.data[0], foodItems: [{ name: 'Rice', quantity: '-1', unit: null, price: null }] }), /invalid pack counts/)
+})
+
+
+test('eligibility retains the fetched food card ID and rejects missing or invalid IDs', () => {
+  assert.equal(mapEligibility({ foodCardId: 'food-card-1', members: [] }, 'receiver-1').foodCardId, 'food-card-1')
+  assert.equal(mapEligibility({ foodCard: { id: 'nested-card' }, members: [] }, 'receiver-1').foodCardId, 'nested-card')
+  for (const foodCardId of [undefined, null, '', ' ', 123, {}, ' card-1 ']) {
+    assert.throws(() => mapEligibility({ foodCardId, members: [] }, 'receiver-1'), /valid food card ID/)
+  }
 })

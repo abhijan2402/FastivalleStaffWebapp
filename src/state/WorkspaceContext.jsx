@@ -296,15 +296,16 @@ export function WorkspaceProvider({ children }) {
     if (sessionRef.current !== activeSession) throw Error('Your session changed. Please sign in again.')
     return mapEligibility(result, receiverId)
   }, [])
-  async function assignFood(eventId, receiverId, personIds) {
+  async function assignFood(eventId, receiverId, personIds, foodCardId) {
     const activeSession = sessionRef.current
     if (!activeSession) throw Error('Please sign in again.')
     if (foodMutationLock.current) throw Error('Food assignment is already in progress.')
     if (!navigator.onLine) throw Error('You are offline. Reconnect and check eligibility before assigning food.')
     if (!personIds.length || new Set(personIds).size !== personIds.length) throw Error('Select eligible family members.')
+    if (typeof foodCardId !== 'string' || !foodCardId.trim() || foodCardId !== foodCardId.trim()) throw Error('Refresh eligibility to load the food card ID before assigning food.')
     foodMutationLock.current = true; setFoodMutationBusy(true)
     try {
-      await apiRef.current.assignFood(eventId, receiverId, personIds)
+      await apiRef.current.assignFood(eventId, receiverId, personIds, foodCardId)
       if (sessionRef.current !== activeSession) throw Error('Your session changed. Review the assignment after signing in again.')
       // Only a confirmed server response is reported as success; no local serving is created.
       void refreshEvents()

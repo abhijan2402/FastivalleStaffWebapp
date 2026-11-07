@@ -50,7 +50,7 @@ export default function LiveServingFlow() {
     pending.current = true; setSaving(true); setError('')
     const current = generation.current
     try {
-      await assignFood(eventId, receiverId, ids)
+      await assignFood(eventId, receiverId, ids, family.foodCardId)
       if (current !== generation.current) return
       setResult({ names: family.members.filter(member => ids.includes(member.id)).map(member => member.name), count: ids.length })
       setFamily(null); setSelected([]); setEventRefresh(value => value + 1)

@@ -15,7 +15,7 @@ async function mockServing(page, options = {}) {
       if (control.eligibilityStatus !== 200) return route.fulfill({ status: control.eligibilityStatus, json: { message: 'Eligibility is unavailable' } })
       const eventId = path.split('/')[4], receiverId = path.split('/')[6]
       if (control.malformed) return route.fulfill({ json: { data: { unknown: [] } } })
-      return route.fulfill({ json: { data: { receiver: { id: receiverId, name: `Family ${receiverId}` }, members: [
+      return route.fulfill({ json: { data: { foodCardId: control.foodCardId === undefined ? `card-${eventId}-${receiverId}` : control.foodCardId, receiver: { id: receiverId, name: `Family ${receiverId}` }, members: [
         { personId: 'SELF', name: 'Receiver Self', eligible: !control.assigned.has(`${eventId}:SELF`), isSelf: true },
         { personId: 'member-child', name: 'Child Member', relationship: 'DAUGHTER', eligible: !control.assigned.has(`${eventId}:member-child`) },
         { personId: 'member-served', name: 'Already Served', eligible: false, reason: 'Already assigned to this event' },
@@ -83,7 +83,7 @@ for (const role of ['volunteer', 'agent']) {
     await expect(page.getByRole('heading', { name: 'Food assigned successfully' })).toBeVisible()
     const post = control.requests.filter(r => r.path.endsWith('/assign'))
     expect(post).toHaveLength(1)
-    expect(post[0]).toMatchObject({ path: '/api/volunteer/food-events/event-1/assign', method: 'POST', token: 'Bearer serving-token', body: { receiverId: 'receiver-real', personIds: ['SELF', 'member-child'] } })
+    expect(post[0]).toMatchObject({ path: '/api/volunteer/food-events/event-1/assign', method: 'POST', token: 'Bearer serving-token', body: { receiverId: 'receiver-real', personIds: ['SELF', 'member-child'], foodCardId: 'card-event-1-receiver-real' } })
     expect(control.requests.find(r => r.path.endsWith('/eligible-members'))).toMatchObject({ method: 'GET', token: 'Bearer serving-token', body: null })
     const lists = control.requests.filter(r => r.path === '/api/volunteer/food-events')
     expect(lists.every(r => r.query.dateScope === 'today_and_upcoming' && r.method === 'GET' && r.body === null)).toBe(true)
@@ -188,4 +188,35 @@ test('mobile serving blocks offline assignment and invalid QR codes never reach 
   await expect(page.getByRole('button', { name: 'Proceed', exact: true })).toBeDisabled()
   expect(control.requests.some(r => r.path.endsWith('/assign'))).toBe(false)
   await context.setOffline(false)
+})
+
+
+test('assignment uses the refreshed food card ID from eligibility', async ({ page }) => {
+  const control = await mockServing(page, { foodCardId: 'original-food-card' })
+  await login(page)
+  await page.getByLabel('Food event', { exact: true }).selectOption('event-1')
+  await scan(page)
+  await expect(page.getByLabel('Receiver Self')).toBeEnabled()
+  control.foodCardId = 'refreshed-food-card'
+  await page.getByRole('button', { name: 'Refresh eligibility', exact: true }).click()
+  await page.getByLabel('Receiver Self').check()
+  await page.getByRole('button', { name: 'Proceed', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Food assigned successfully' })).toBeVisible()
+  expect(control.requests.find(request => request.path.endsWith('/assign')).body).toEqual({ receiverId: 'receiver-real', personIds: ['SELF'], foodCardId: 'refreshed-food-card' })
+})
+
+test('missing food card ID blocks assignment until eligibility supplies it', async ({ page }) => {
+  const control = await mockServing(page, { foodCardId: null })
+  await login(page)
+  await page.getByLabel('Food event', { exact: true }).selectOption('event-1')
+  await scan(page)
+  await expect(page.getByRole('alert')).toContainText('missing a valid food card ID')
+  await expect(page.getByRole('button', { name: 'Proceed', exact: true })).toBeDisabled()
+  expect(control.requests.some(request => request.path.endsWith('/assign'))).toBe(false)
+  control.foodCardId = 'restored-food-card'
+  await page.getByRole('button', { name: 'Refresh eligibility', exact: true }).click()
+  await page.getByLabel('Receiver Self').check()
+  await page.getByRole('button', { name: 'Proceed', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Food assigned successfully' })).toBeVisible()
+  expect(control.requests.find(request => request.path.endsWith('/assign')).body.foodCardId).toBe('restored-food-card')
 })

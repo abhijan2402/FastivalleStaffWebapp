@@ -71,7 +71,7 @@ export function createApi({ baseUrl, getToken = () => null, onUnauthorized = () 
     deleteFoodEvent: id => request(`/api/admin/food-events/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     setFoodEventStatus: (id, body) => request(`/api/admin/food-events/${encodeURIComponent(id)}/status`, { method: 'PATCH', body }),
     eligibleMembers: (eventId, receiverId) => request(`/api/volunteer/food-events/${encodeURIComponent(eventId)}/receivers/${encodeURIComponent(receiverId)}/eligible-members`),
-    assignFood: (eventId, receiverId, personIds) => request(`/api/volunteer/food-events/${encodeURIComponent(eventId)}/assign`, { method: 'POST', body: { receiverId, personIds } }),
+    assignFood: (eventId, receiverId, personIds, foodCardId) => request(`/api/volunteer/food-events/${encodeURIComponent(eventId)}/assign`, { method: 'POST', body: { receiverId, personIds, foodCardId } }),
     async foodEvents() {
       const items = []
       for (let offset = 0; ; offset += 20) {

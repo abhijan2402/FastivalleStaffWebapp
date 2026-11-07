@@ -31,7 +31,9 @@ export function mapEligibility(payload, receiverId) {
     const eligible = person.eligible !== false && person.isEligible !== false && person.canReceive !== false && person.alreadyAssigned !== true && person.isAssigned !== true && person.alreadyServed !== true && !['INELIGIBLE', 'ASSIGNED', 'SERVED'].includes(person.status)
     return { id, name: person.name || (isSelf ? receiver?.name || 'Self' : id), relation: isSelf ? 'Self' : person.relationship || person.relation || 'Family member', eligible, reason: person.reason || person.ineligibleReason || 'Already assigned or unavailable for this event' }
   })
-  return { receiverId, name: receiver?.name || payload?.receiverName || receiverId, members }
+  const foodCardId = payload?.foodCardId ?? payload?.foodCard?.id
+  if (typeof foodCardId !== 'string' || !foodCardId.trim() || foodCardId !== foodCardId.trim()) throw Error('The eligibility response is missing a valid food card ID. Refresh eligibility or contact support.')
+  return { receiverId, foodCardId, name: receiver?.name || payload?.receiverName || receiverId, members }
 }
 
 export function canServeEvent(event) {
